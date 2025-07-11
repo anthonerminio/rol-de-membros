@@ -334,4 +334,12 @@ else:
                         with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
                             df_excel.to_excel(writer, index=False, sheet_name='Membros')
                         excel_data = output_excel.getvalue()
-                        st.download_button(label="📄 Exportar Excel (.xlsx)", data=excel_data, file_name="membros_
+                        st.download_button(label="📄 Exportar Excel (.xlsx)", data=excel_data, file_name="membros_selecionados.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True, disabled=sem_selecao)
+                    with col3:
+                        df_pdf = registros_selecionados.drop(columns=['Selecionar'])
+                        pdf_data = criar_pdf(df_pdf)
+                        st.download_button(label="📕 Exportar PDF (.pdf)", data=pdf_data, file_name="membros_selecionados.pdf", mime="application/pdf", use_container_width=True, disabled=sem_selecao)
+            else:
+                st.info("Nenhum membro encontrado com os critérios de busca.")
+        else:
+            st.info("Utilize um dos filtros acima para iniciar a busca.")
