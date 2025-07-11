@@ -36,18 +36,22 @@ except (KeyError, FileNotFoundError):
 def criar_pdf(df):
     pdf = FPDF(orientation='L', unit='mm', format='A4')
     pdf.add_page()
-    pdf.set_font('helvetica', 'B', 10)
+    pdf.set_font('helvetica', 'B', 8)
     cols = df.columns
-    col_widths = {'Selecionar': 25, 'Nome': 60, 'CPF': 30, 'Status': 20}
+    # Ajustar larguras para caber mais colunas
+    col_widths = {
+        'Nome': 45, 'CPF': 25, 'Data de Nascimento': 22, 'Celular': 25,
+        'Estado Civil': 22, 'Profissão': 25
+    }
     line_height = pdf.font_size * 2.5
     for col in cols:
-        width = col_widths.get(col, 28)
+        width = col_widths.get(col, 18) # Largura padrão menor
         pdf.cell(width, line_height, col, border=1, ln=0, align='C')
     pdf.ln(line_height)
-    pdf.set_font('helvetica', '', 9)
+    pdf.set_font('helvetica', '', 7)
     for index, row in df.iterrows():
         for col in cols:
-            width = col_widths.get(col, 28)
+            width = col_widths.get(col, 18)
             text = str(row[col]).encode('latin-1', 'replace').decode('latin-1')
             pdf.cell(width, line_height, text, border=1, ln=0, align='L')
         pdf.ln(line_height)
@@ -59,18 +63,15 @@ def criar_pdf_aniversariantes(df, mes_nome):
     pdf.set_font('helvetica', 'B', 16)
     pdf.cell(0, 10, f'Aniversariantes de {mes_nome}', 0, 1, 'C')
     pdf.ln(10)
-    
     pdf.set_font('helvetica', 'B', 12)
     pdf.cell(130, 10, 'Nome Completo', 1, 0, 'C')
     pdf.cell(60, 10, 'Data de Nascimento', 1, 1, 'C')
-    
     pdf.set_font('helvetica', '', 11)
     for index, row in df.iterrows():
         nome = str(row['Nome Completo']).encode('latin-1', 'replace').decode('latin-1')
         data_nasc = str(row['Data de Nascimento Completa']).encode('latin-1', 'replace').decode('latin-1')
         pdf.cell(130, 10, nome, 1, 0, 'L')
         pdf.cell(60, 10, data_nasc, 1, 1, 'C')
-        
     return bytes(pdf.output(dest='S'))
 
 # --- Funções de Dados (Google Sheets) ---
@@ -84,19 +85,19 @@ except (KeyError, FileNotFoundError):
     st.error("As credenciais do Google Sheets não foram encontradas. Por favor, configure os segredos.")
     st.stop()
 
-
 @st.cache_resource(ttl=3600)
 def get_client(creds):
     return gspread.service_account_from_dict(creds)
 
 gc = get_client(creds_dict)
 
+# CORREÇÃO 1: Ordem final e correta dos cabeçalhos
 HEADERS = [
     "Nome", "CPF", "Sexo", "Estado Civil", "Profissão", "Forma de Admissao",
     "Data de Nascimento", "Nacionalidade", "Naturalidade", "UF (Naturalidade)",
     "Nome do Pai", "Nome da Mae", "Nome do(a) Cônjuge",
-    "CEP", "Endereco", "Bairro", "Cidade", "UF (Endereco)", 
-    "Grau de Instrução", "Celular", "Data de Conversao", "Data de Admissao", 
+    "CEP", "Endereco", "Bairro", "Cidade", "UF (Endereco)",
+    "Grau de Instrução", "Celular", "Data de Conversao", "Data de Admissao",
     "Status", "Observações"
 ]
 
@@ -161,7 +162,6 @@ def init_state():
         st.session_state.membros = carregar_membros()
         st.session_state.confirmando_exclusao = False
         st.session_state.cpfs_para_excluir = set()
-        
         map_keys = {"Nome": "nome", "CPF": "cpf", "Sexo": "sexo", "Estado Civil": "estado_civil", "Profissão": "profissao", "Forma de Admissao": "forma_admissao", "Data de Nascimento": "data_nasc", "Nacionalidade": "nacionalidade", "Naturalidade": "naturalidade", "UF (Naturalidade)": "uf_nat", "Nome do Pai": "nome_pai", "Nome da Mae": "nome_mae", "Nome do(a) Cônjuge": "conjuge", "CEP": "cep", "Endereco": "endereco", "Bairro": "bairro", "Cidade": "cidade", "UF (Endereco)": "uf_end", "Grau de Instrução": "grau_ins", "Celular": "celular", "Data de Conversao": "data_conv", "Data de Admissao": "data_adm", "Status": "status", "Observações": "observacoes"}
         for key in map_keys.values():
             if key not in st.session_state:
@@ -220,16 +220,15 @@ else:
             st.subheader("Informações Pessoais")
             c1, c2 = st.columns(2)
             with c1:
-                st.text_input("Nome completo", key="nome")
+                st.text_input("Nome", key="nome")
                 st.text_input("CPF", key="cpf")
                 st.selectbox("Estado Civil", ["", "Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)"], key="estado_civil")
-                st.selectbox("Forma de Admissão", ["", "Batismo", "Transferência", "Aclamação"], key="forma_admissao")
+                st.selectbox("Forma de Admissao", ["", "Batismo", "Transferência", "Aclamação"], key="forma_admissao")
             with c2:
                 st.radio("Sexo", ["M", "F"], key="sexo", horizontal=True)
                 st.date_input("Data de Nascimento", key="data_nasc", min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY")
                 st.text_input("Profissão", key="profissao")
                 st.text_input("Celular", key="celular")
-
             st.subheader("Filiação e Origem")
             c3, c4 = st.columns(2)
             with c3:
@@ -240,7 +239,6 @@ else:
                 st.selectbox("Nacionalidade", ["", "Brasileiro(a)", "Estrangeiro(a)"], key="nacionalidade")
                 st.text_input("Naturalidade", key="naturalidade")
                 st.selectbox("UF (Naturalidade)", [""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"], key="uf_nat")
-
             st.subheader("Endereço")
             c5, c6 = st.columns([1, 3])
             with c5:
@@ -248,30 +246,28 @@ else:
                 if st.form_submit_button("🔎 Buscar CEP"):
                     dados_cep = buscar_cep(cep_input)
                     if dados_cep:
-                        st.session_state.endereco, st.session_state.bairro, st.session_state.cidade, st.session_state.uf_end = dados_cep["endereco"], dados_cep["bairro"], dados_cep["cidade"], dados_cep["uf"]
+                        st.session_state.update(dados_cep)
                         st.success("Endereço preenchido!")
                     elif cep_input: st.warning("CEP não encontrado ou inválido.")
             c7, c8, c9, c10 = st.columns(4)
             with c7:
-                st.text_input("Endereço", key="endereco")
+                st.text_input("Endereco", key="endereco")
             with c8:
                 st.text_input("Bairro", key="bairro")
             with c9:
                 st.text_input("Cidade", key="cidade")
             with c10:
-                st.selectbox("UF (Endereço)", [""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"], key="uf_end")
-
+                st.selectbox("UF (Endereco)", [""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"], key="uf_end")
             st.subheader("Informações Adicionais")
             c11, c12, c13 = st.columns(3)
             with c11:
                 st.selectbox("Grau de Instrução", ["", "Fundamental Incompleto", "Fundamental Completo", "Médio Incompleto", "Médio Completo", "Superior Incompleto", "Superior Completo", "Pós-graduação", "Mestrado", "Doutorado"], key="grau_ins")
                 st.selectbox("Status", ["Ativo", "Inativo"], key="status")
             with c12:
-                st.date_input("Data de Conversão", key="data_conv", min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY")
-                st.date_input("Data de Admissão", key="data_adm", min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY")
+                st.date_input("Data de Conversao", key="data_conv", min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY")
+                st.date_input("Data de Admissao", key="data_adm", min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY")
             with c13:
                  st.text_area("Observações", key="observacoes")
-
             st.markdown("---")
             if st.form_submit_button("💾 Salvar Membro"):
                 novo = {}
@@ -282,7 +278,10 @@ else:
                     elif isinstance(valor, str): novo[header] = valor.strip().upper()
                     else: novo[header] = valor
                 
-                if novo.get("CPF") and any(m.get("CPF") == novo["CPF"] for m in st.session_state.membros):
+                # CORREÇÃO 2: Validação de CPF obrigatório
+                if not novo.get("CPF"):
+                    st.error("O campo CPF é de preenchimento obrigatório.")
+                elif any(m.get("CPF") == novo["CPF"] for m in st.session_state.membros):
                     st.error("Já existe um membro cadastrado com este CPF.")
                 else:
                     st.session_state.membros.append(novo)
@@ -295,7 +294,7 @@ else:
             df2 = pd.DataFrame(st.session_state.membros).reindex(columns=HEADERS)
             if 'Status' in df2.columns:
                 df2['Situação'] = df2['Status'].apply(lambda s: '🟢' if str(s).upper() == 'ATIVO' else '🔴' if str(s).upper() == 'INATIVO' else '⚪')
-                colunas_ordenadas = ['Situação'] + HEADERS
+                colunas_ordenadas = ['Situação'] + [col for col in HEADERS if col in df2.columns]
                 df2 = df2[colunas_ordenadas]
             df2_formatado = formatar_datas(df2.copy(), ["Data de Nascimento", "Data de Conversao", "Data de Admissao"])
             st.dataframe(df2_formatado, use_container_width=True, hide_index=True)
@@ -312,9 +311,7 @@ else:
             termo = st.text_input("Buscar por Nome ou CPF", key="busca_termo").strip().upper()
         with col_busca2:
             data_filtro = st.date_input("Buscar por Data de Nascimento", value=None, key="busca_data", min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY")
-        
         st.info("Filtre para refinar a lista, ou selecione diretamente na lista completa abaixo para Excluir ou Exportar.")
-        
         df_original = pd.DataFrame(st.session_state.membros)
         if df_original.empty:
             st.warning("Não há membros cadastrados para exibir.")
@@ -326,11 +323,10 @@ else:
             if data_filtro:
                 data_filtro_str = data_filtro.strftime('%d/%m/%Y')
                 df_filtrado = df_filtrado[df_filtrado['Data de Nascimento'] == data_filtro_str]
-
             if df_filtrado.empty:
                 st.warning("Nenhum membro encontrado com os critérios de busca especificados.")
             else:
-                df_formatado = formatar_datas(df_filtrado.copy(), ["Data de Nascimento", "Data de Conversao", "Data de Admissao"])
+                df_formatado = formatar_datas(df_filtrado.copy(), ["Data de Nascimento", "Data de Conversao", "Data de Admissao"]).reindex(columns=HEADERS)
                 df_formatado.insert(0, "Selecionar", False)
                 edited_df = st.data_editor(df_formatado, disabled=[col for col in df_formatado.columns if col != "Selecionar"], hide_index=True, use_container_width=True, key="editor_selecao")
                 registros_selecionados = edited_df[edited_df["Selecionar"] == True]
