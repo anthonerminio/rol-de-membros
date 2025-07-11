@@ -38,14 +38,10 @@ def criar_pdf(df):
     pdf.add_page()
     pdf.set_font('helvetica', 'B', 8)
     cols = df.columns
-    # Ajustar larguras para caber mais colunas
-    col_widths = {
-        'Nome': 45, 'CPF': 25, 'Data de Nascimento': 22, 'Celular': 25,
-        'Estado Civil': 22, 'Profissão': 25
-    }
+    col_widths = {'Nome': 45, 'CPF': 25, 'Data de Nascimento': 22, 'Celular': 25, 'Estado Civil': 22, 'Profissão': 25}
     line_height = pdf.font_size * 2.5
     for col in cols:
-        width = col_widths.get(col, 18) # Largura padrão menor
+        width = col_widths.get(col, 18)
         pdf.cell(width, line_height, col, border=1, ln=0, align='C')
     pdf.ln(line_height)
     pdf.set_font('helvetica', '', 7)
@@ -91,7 +87,6 @@ def get_client(creds):
 
 gc = get_client(creds_dict)
 
-# CORREÇÃO 1: Ordem final e correta dos cabeçalhos
 HEADERS = [
     "Nome", "CPF", "Sexo", "Estado Civil", "Profissão", "Forma de Admissao",
     "Data de Nascimento", "Nacionalidade", "Naturalidade", "UF (Naturalidade)",
@@ -153,6 +148,17 @@ def buscar_cep(cep):
         pass
     return None
 
+MAP_KEYS = {"Nome": "nome", "CPF": "cpf", "Sexo": "sexo", "Estado Civil": "estado_civil", "Profissão": "profissao", "Forma de Admissao": "forma_admissao", "Data de Nascimento": "data_nasc", "Nacionalidade": "nacionalidade", "Naturalidade": "naturalidade", "UF (Naturalidade)": "uf_nat", "Nome do Pai": "nome_pai", "Nome da Mae": "nome_mae", "Nome do(a) Cônjuge": "conjuge", "CEP": "cep", "Endereco": "endereco", "Bairro": "bairro", "Cidade": "cidade", "UF (Endereco)": "uf_end", "Grau de Instrução": "grau_ins", "Celular": "celular", "Data de Conversao": "data_conv", "Data de Admissao": "data_adm", "Status": "status", "Observações": "observacoes"}
+
+def limpar_formulario():
+    """Limpa os campos do formulário no session_state."""
+    for key in MAP_KEYS.values():
+        if "data" in key:
+            st.session_state[key] = None
+        else:
+            st.session_state[key] = ""
+    st.session_state.sexo = "M"
+
 def init_state():
     if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
@@ -162,8 +168,8 @@ def init_state():
         st.session_state.membros = carregar_membros()
         st.session_state.confirmando_exclusao = False
         st.session_state.cpfs_para_excluir = set()
-        map_keys = {"Nome": "nome", "CPF": "cpf", "Sexo": "sexo", "Estado Civil": "estado_civil", "Profissão": "profissao", "Forma de Admissao": "forma_admissao", "Data de Nascimento": "data_nasc", "Nacionalidade": "nacionalidade", "Naturalidade": "naturalidade", "UF (Naturalidade)": "uf_nat", "Nome do Pai": "nome_pai", "Nome da Mae": "nome_mae", "Nome do(a) Cônjuge": "conjuge", "CEP": "cep", "Endereco": "endereco", "Bairro": "bairro", "Cidade": "cidade", "UF (Endereco)": "uf_end", "Grau de Instrução": "grau_ins", "Celular": "celular", "Data de Conversao": "data_conv", "Data de Admissao": "data_adm", "Status": "status", "Observações": "observacoes"}
-        for key in map_keys.values():
+        
+        for key in MAP_KEYS.values():
             if key not in st.session_state:
                 st.session_state[key] = None if "data" in key else ""
         if "sexo" not in st.session_state or not st.session_state.sexo:
@@ -216,7 +222,8 @@ else:
 
     with tab1:
         st.header("Cadastro de Novos Membros")
-        with st.form("form_membro", clear_on_submit=True):
+        # CORREÇÃO 1: Alterado para clear_on_submit=False
+        with st.form("form_membro", clear_on_submit=False):
             st.subheader("Informações Pessoais")
             c1, c2 = st.columns(2)
             with c1:
@@ -243,12 +250,16 @@ else:
             c5, c6 = st.columns([1, 3])
             with c5:
                 cep_input = st.text_input("CEP", key="cep")
-                if st.form_submit_button("🔎 Buscar CEP"):
+                # Botão de buscar CEP agora é um botão normal, não de submit
+                if st.button("🔎 Buscar CEP"):
                     dados_cep = buscar_cep(cep_input)
                     if dados_cep:
-                        st.session_state.update(dados_cep)
+                        # Atualiza o estado da sessão diretamente
+                        for k, v in dados_cep.items():
+                            st.session_state[k] = v
                         st.success("Endereço preenchido!")
-                    elif cep_input: st.warning("CEP não encontrado ou inválido.")
+                    elif cep_input: 
+                        st.warning("CEP não encontrado ou inválido.")
             c7, c8, c9, c10 = st.columns(4)
             with c7:
                 st.text_input("Endereco", key="endereco")
@@ -268,29 +279,34 @@ else:
                 st.date_input("Data de Admissao", key="data_adm", min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY")
             with c13:
                  st.text_area("Observações", key="observacoes")
+            
             st.markdown("---")
-            if st.form_submit_button("💾 Salvar Membro"):
-                novo = {}
-                map_keys = {"Nome": "nome", "CPF": "cpf", "Sexo": "sexo", "Estado Civil": "estado_civil", "Profissão": "profissao", "Forma de Admissao": "forma_admissao", "Data de Nascimento": "data_nasc", "Nacionalidade": "nacionalidade", "Naturalidade": "naturalidade", "UF (Naturalidade)": "uf_nat", "Nome do Pai": "nome_pai", "Nome da Mae": "nome_mae", "Nome do(a) Cônjuge": "conjuge", "CEP": "cep", "Endereco": "endereco", "Bairro": "bairro", "Cidade": "cidade", "UF (Endereco)": "uf_end", "Grau de Instrução": "grau_ins", "Celular": "celular", "Data de Conversao": "data_conv", "Data de Admissao": "data_adm", "Status": "status", "Observações": "observacoes"}
-                for header, key in map_keys.items():
-                    valor = st.session_state.get(key, "")
-                    if isinstance(valor, date): novo[header] = valor.strftime('%d/%m/%Y')
-                    elif isinstance(valor, str): novo[header] = valor.strip().upper()
-                    else: novo[header] = valor
-                
-                # CORREÇÃO 2: Validação de CPF obrigatório
-                if not novo.get("CPF"):
-                    st.error("O campo CPF é de preenchimento obrigatório.")
-                elif any(m.get("CPF") == novo["CPF"] for m in st.session_state.membros):
-                    st.error("Já existe um membro cadastrado com este CPF.")
-                else:
-                    st.session_state.membros.append(novo)
-                    salvar_membros(st.session_state.membros)
-                    st.success("Membro salvo com sucesso!")
+            btn_salvar = st.form_submit_button("💾 Salvar Membro")
+
+        if btn_salvar:
+            novo = {}
+            for header, key in MAP_KEYS.items():
+                valor = st.session_state.get(key, "")
+                if isinstance(valor, date): novo[header] = valor.strftime('%d/%m/%Y')
+                elif isinstance(valor, str): novo[header] = valor.strip().upper()
+                else: novo[header] = valor
+            
+            # CORREÇÃO 2: Validação de CPF antes de salvar
+            if not novo.get("CPF"):
+                st.error("O campo CPF é de preenchimento obrigatório.")
+            elif any(m.get("CPF") == novo["CPF"] for m in st.session_state.membros):
+                st.error("Já existe um membro cadastrado com este CPF.")
+            else:
+                st.session_state.membros.append(novo)
+                salvar_membros(st.session_state.membros)
+                st.success("Membro salvo com sucesso!")
+                limpar_formulario() # Limpa o formulário apenas em caso de sucesso
+                st.rerun()
 
     with tab2:
         st.header("Lista de Membros")
         if "membros" in st.session_state and st.session_state.membros:
+            # Garante a ordem das colunas
             df2 = pd.DataFrame(st.session_state.membros).reindex(columns=HEADERS)
             if 'Status' in df2.columns:
                 df2['Situação'] = df2['Status'].apply(lambda s: '🟢' if str(s).upper() == 'ATIVO' else '🔴' if str(s).upper() == 'INATIVO' else '⚪')
@@ -311,7 +327,9 @@ else:
             termo = st.text_input("Buscar por Nome ou CPF", key="busca_termo").strip().upper()
         with col_busca2:
             data_filtro = st.date_input("Buscar por Data de Nascimento", value=None, key="busca_data", min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY")
+        
         st.info("Filtre para refinar a lista, ou selecione diretamente na lista completa abaixo para Excluir ou Exportar.")
+        
         df_original = pd.DataFrame(st.session_state.membros)
         if df_original.empty:
             st.warning("Não há membros cadastrados para exibir.")
@@ -323,6 +341,7 @@ else:
             if data_filtro:
                 data_filtro_str = data_filtro.strftime('%d/%m/%Y')
                 df_filtrado = df_filtrado[df_filtrado['Data de Nascimento'] == data_filtro_str]
+
             if df_filtrado.empty:
                 st.warning("Nenhum membro encontrado com os critérios de busca especificados.")
             else:
