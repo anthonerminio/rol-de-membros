@@ -20,7 +20,7 @@ try:
     GOOGLE_CLIENT_ID = st.secrets["google_oauth"]["client_id"]
     GOOGLE_CLIENT_SECRET = st.secrets["google_oauth"]["client_secret"]
     GOOGLE_REDIRECT_URI = "https://pibgaibu.streamlit.app"
-    EMAILS_PERMITIDOS = {"antonio.esn01@gmail.com","adrielly.rfn@gmail.com", "neto1999.legal@gmail.com", "adrielsoliveira1907@gmail.com"}
+    EMAILS_PERMITIDOS = {"antonio.esn01@gmail.com", "neto1999.legal@gmail.com", "adrielsoliveira1907@gmail.com"}
 
     oauth2 = OAuth2Component(
         client_id=GOOGLE_CLIENT_ID,
@@ -39,17 +39,14 @@ def criar_pdf_lista(df):
     pdf.add_page()
     pdf.add_font("DejaVu", "", "fonts/DejaVuSans.ttf", uni=True)
     pdf.set_font("DejaVu", size=8)
-    
     cols = df.columns
     col_widths = {'Nome': 45, 'CPF': 25, 'Data de Nascimento': 22, 'Celular': 25, 'Estado Civil': 22, 'Profissão': 25}
     line_height = pdf.font_size * 2.5
-    
     pdf.set_font_size(10)
     for col in cols:
         width = col_widths.get(col, 18)
         pdf.cell(width, line_height, col, border=1, ln=0, align='C')
     pdf.ln(line_height)
-    
     pdf.set_font_size(7)
     for index, row in df.iterrows():
         for col in cols:
@@ -63,7 +60,6 @@ def criar_pdf_aniversariantes(df, mes_nome):
     pdf.add_page()
     pdf.add_font("DejaVu", "", "fonts/DejaVuSans.ttf", uni=True)
     pdf.set_font("DejaVu", size=16)
-
     pdf.cell(0, 10, f'Aniversariantes de {mes_nome}', 0, 1, 'C')
     pdf.ln(10)
     pdf.set_font('DejaVu', size=12)
@@ -80,26 +76,22 @@ def criar_pdf_ficha(membro):
     pdf.add_page()
     pdf.add_font("DejaVu", "", "fonts/DejaVuSans.ttf", uni=True)
     pdf.set_font("DejaVu", size=16)
-    
     pdf.cell(0, 10, 'Ficha Individual de Membro - PIB Gaibu', 0, 1, 'C')
     pdf.set_font("DejaVu", size=14)
     pdf.cell(0, 10, membro.get("Nome", ""), 0, 1, 'C')
     pdf.ln(5)
-
     def draw_field(label, value):
         if value and str(value).strip():
             pdf.set_font('DejaVu', size=10)
             pdf.cell(50, 7, f"{label}:", 0, 0, 'L')
             pdf.set_font('DejaVu', size=10)
             pdf.multi_cell(0, 7, str(value), 0, 'L')
-            pdf.ln(2) 
-
+            pdf.ln(2)
     def draw_section_header(title):
         pdf.set_font('DejaVu', size=12)
         pdf.cell(0, 10, title, 0, 1, 'L')
         pdf.line(10, pdf.get_y(), 200, pdf.get_y())
         pdf.ln(2)
-
     draw_section_header("👤 Dados Pessoais")
     draw_field("CPF", membro.get("CPF"))
     draw_field("Data de Nascimento", membro.get("Data de Nascimento"))
@@ -108,7 +100,6 @@ def criar_pdf_ficha(membro):
     draw_field("Profissão", membro.get("Profissão"))
     draw_field("Celular", membro.get("Celular"))
     pdf.ln(5)
-
     draw_section_header("🏠 Endereço")
     draw_field("CEP", membro.get("CEP"))
     draw_field("Endereço", membro.get("Endereco"))
@@ -116,7 +107,6 @@ def criar_pdf_ficha(membro):
     draw_field("Cidade", membro.get("Cidade"))
     draw_field("UF", membro.get("UF (Endereco)"))
     pdf.ln(5)
-    
     draw_section_header("👨‍👩‍👧 Filiação e Origem")
     draw_field("Nome do Pai", membro.get("Nome do Pai"))
     draw_field("Nome da Mãe", membro.get("Nome da Mae"))
@@ -124,67 +114,50 @@ def criar_pdf_ficha(membro):
     draw_field("Nacionalidade", membro.get("Nacionalidade"))
     draw_field("Naturalidade", membro.get("Naturalidade"))
     pdf.ln(5)
-
     draw_section_header("⛪ Dados Eclesiásticos")
     draw_field("Status", membro.get("Status"))
     draw_field("Forma de Admissão", membro.get("Forma de Admissao"))
     draw_field("Data de Admissão", membro.get("Data de Admissao"))
     draw_field("Data de Conversão", membro.get("Data de Conversao"))
-    
     return bytes(pdf.output())
 
 # --- Funções de Dados (Google Sheets) ---
 NOME_PLANILHA = "Fichario_Membros_PIB_Gaibu"
 NOME_ABA = "Membros"
-
 try:
     creds_json_str = st.secrets["google_sheets"]["creds_json_str"]
     creds_dict = json.loads(creds_json_str)
 except (KeyError, FileNotFoundError):
     st.error("As credenciais do Google Sheets não foram encontradas.")
     st.stop()
-
 @st.cache_resource(ttl=3600)
 def get_client(creds):
     return gspread.service_account_from_dict(creds)
-
 gc = get_client(creds_dict)
-
-HEADERS = [
-    "Nome", "CPF", "Sexo", "Estado Civil", "Profissão", "Forma de Admissao",
-    "Data de Nascimento", "Nacionalidade", "Naturalidade", "UF (Naturalidade)",
-    "Nome do Pai", "Nome da Mae", "Nome do(a) Cônjuge",
-    "CEP", "Endereco", "Bairro", "Cidade", "UF (Endereco)",
-    "Grau de Instrução", "Celular", "Data de Conversao", "Data de Admissao",
-    "Status", "Observações"
-]
+HEADERS = ["Nome", "CPF", "Sexo", "Estado Civil", "Profissão", "Forma de Admissao", "Data de Nascimento", "Nacionalidade", "Naturalidade", "UF (Naturalidade)", "Nome do Pai", "Nome da Mae", "Nome do(a) Cônjuge", "CEP", "Endereco", "Bairro", "Cidade", "UF (Endereco)", "Grau de Instrução", "Celular", "Data de Conversao", "Data de Admissao", "Status", "Observações"]
 
 def carregar_membros():
     try:
         ws = gc.open(NOME_PLANILHA).worksheet(NOME_ABA)
     except gspread.SpreadsheetNotFound:
         sh = gc.create(NOME_PLANILHA)
-        ws = sh.add_worksheet(title=NOME_ABA, rows="100", cols=len(HEADERS))
-        ws.insert_row(HEADERS, 1)
+        ws = sh.add_worksheet(title=NOME_ABA, rows="100", cols=len(HEADERS)); ws.insert_row(HEADERS, 1)
         return []
     except gspread.WorksheetNotFound:
         sh = gc.open(NOME_PLANILHA)
-        ws = sh.add_worksheet(title=NOME_ABA, rows="100", cols=len(HEADERS))
-        ws.insert_row(HEADERS, 1)
+        ws = sh.add_worksheet(title=NOME_ABA, rows="100", cols=len(HEADERS)); ws.insert_row(HEADERS, 1)
         return []
     records = ws.get_all_records()
     for record in records:
         record['CPF'] = str(record.get('CPF', ''))
         for header in HEADERS:
-            if header not in record:
-                record[header] = ""
+            if header not in record: record[header] = ""
     return records
 
 def salvar_membros(lista):
     try:
         ws = gc.open(NOME_PLANILHA).worksheet(NOME_ABA)
-        ws.clear()
-        ws.insert_row(HEADERS, 1)
+        ws.clear(); ws.insert_row(HEADERS, 1)
         if lista:
             rows = [[str(m.get(h, '')) for h in HEADERS] for m in lista]
             ws.append_rows(rows, value_input_option="USER_ENTERED")
@@ -193,8 +166,7 @@ def salvar_membros(lista):
 
 def formatar_datas(df, colunas):
     for col in colunas:
-        if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors="coerce", dayfirst=True).dt.strftime("%d/%m/%Y")
+        if col in df.columns: df[col] = pd.to_datetime(df[col], errors="coerce", dayfirst=True).dt.strftime("%d/%m/%Y")
     return df
 
 def buscar_cep(cep):
@@ -206,8 +178,7 @@ def buscar_cep(cep):
             data = resp.json()
             if "erro" not in data:
                 return {"endereco": f"{data.get('logradouro', '')} {data.get('complemento', '')}".strip(), "bairro": data.get("bairro", ""), "cidade": data.get("localidade", ""), "uf_end": data.get("uf", "")}
-    except Exception:
-        pass
+    except Exception: pass
     return None
 
 MAP_KEYS = {"Nome": "nome", "CPF": "cpf", "Sexo": "sexo", "Estado Civil": "estado_civil", "Profissão": "profissao", "Forma de Admissao": "forma_admissao", "Data de Nascimento": "data_nasc", "Nacionalidade": "nacionalidade", "Naturalidade": "naturalidade", "UF (Naturalidade)": "uf_nat", "Nome do Pai": "nome_pai", "Nome da Mae": "nome_mae", "Nome do(a) Cônjuge": "conjuge", "CEP": "cep", "Endereco": "endereco", "Bairro": "bairro", "Cidade": "cidade", "UF (Endereco)": "uf_end", "Grau de Instrução": "grau_ins", "Celular": "celular", "Data de Conversao": "data_conv", "Data de Admissao": "data_adm", "Status": "status", "Observações": "observacoes"}
@@ -218,12 +189,32 @@ def limpar_formulario():
     st.session_state.sexo = "M"
 
 def submeter_formulario():
-    novo = {}
-    for header, key in MAP_KEYS.items():
-        valor = st.session_state.get(key, "")
-        if isinstance(valor, date): novo[header] = valor.strftime('%d/%m/%Y')
-        elif isinstance(valor, str): novo[header] = valor.strip().upper()
-        else: novo[header] = valor
+    novo = {
+        "Nome": str(st.session_state.get("nome", "")).strip().upper(),
+        "CPF": str(st.session_state.get("cpf", "")).strip().upper(),
+        "Sexo": st.session_state.get("sexo", ""),
+        "Estado Civil": st.session_state.get("estado_civil", ""),
+        "Profissão": str(st.session_state.get("profissao", "")).strip().upper(),
+        "Forma de Admissao": st.session_state.get("forma_admissao", ""),
+        "Data de Nascimento": st.session_state.data_nasc.strftime('%d/%m/%Y') if st.session_state.data_nasc else "",
+        "Nacionalidade": st.session_state.get("nacionalidade", ""),
+        "Naturalidade": str(st.session_state.get("naturalidade", "")).strip().upper(),
+        "UF (Naturalidade)": st.session_state.get("uf_nat", ""),
+        "Nome do Pai": str(st.session_state.get("nome_pai", "")).strip().upper(),
+        "Nome da Mae": str(st.session_state.get("nome_mae", "")).strip().upper(),
+        "Nome do(a) Cônjuge": str(st.session_state.get("conjuge", "")).strip().upper(),
+        "CEP": str(st.session_state.get("cep", "")).strip().upper(),
+        "Endereco": str(st.session_state.get("endereco", "")).strip().upper(),
+        "Bairro": str(st.session_state.get("bairro", "")).strip().upper(),
+        "Cidade": str(st.session_state.get("cidade", "")).strip().upper(),
+        "UF (Endereco)": st.session_state.get("uf_end", ""),
+        "Grau de Instrução": st.session_state.get("grau_ins", ""),
+        "Celular": str(st.session_state.get("celular", "")).strip().upper(),
+        "Data de Conversao": st.session_state.data_conv.strftime('%d/%m/%Y') if st.session_state.data_conv else "",
+        "Data de Admissao": st.session_state.data_adm.strftime('%d/%m/%Y') if st.session_state.data_adm else "",
+        "Status": st.session_state.get("status", ""),
+        "Observações": st.session_state.get("observacoes", "").strip()
+    }
     
     cpf_digitado = novo.get("CPF")
     is_duplicado = False
@@ -242,7 +233,6 @@ def confirmar_mudanca_status():
     chaves_para_atualizar = st.session_state.chaves_para_status
     novo_status_val = st.session_state.novo_status
     obs_adicional = st.session_state.obs_status
-    
     for membro in st.session_state.membros:
         chave_membro = (membro.get('Nome'), membro.get('Data de Nascimento'))
         if chave_membro in chaves_para_atualizar:
@@ -252,33 +242,21 @@ def confirmar_mudanca_status():
                 data_hoje = date.today().strftime("%d/%m/%Y")
                 nota_observacao = f"[{data_hoje}] {obs_adicional.strip()}"
                 membro['Observações'] = f"{obs_existente}\n{nota_observacao}".strip() if obs_existente else nota_observacao
-    
     salvar_membros(st.session_state.membros)
     st.toast(f"Status de {len(chaves_para_atualizar)} membro(s) alterado com sucesso!", icon="👍")
-    
-    st.session_state.confirmando_status = False
-    st.session_state.chaves_para_status = set()
-    st.session_state.obs_status = ""
+    st.session_state.confirmando_status, st.session_state.chaves_para_status, st.session_state.obs_status = False, set(), ""
 
 def cancelar_mudanca_status():
-    st.session_state.confirmando_status = False
-    st.session_state.chaves_para_status = set()
-    st.session_state.obs_status = ""
+    st.session_state.confirmando_status, st.session_state.chaves_para_status, st.session_state.obs_status = False, set(), ""
 
 def init_state():
     if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
         st.session_state.username = ""
-
     if st.session_state.authenticated and "membros" not in st.session_state:
         st.session_state.membros = carregar_membros()
-        st.session_state.confirmando_exclusao = False
-        st.session_state.chaves_para_excluir = set()
-        st.session_state.confirmando_status = False
-        st.session_state.chaves_para_status = set()
-        st.session_state.novo_status = ""
-        st.session_state.obs_status = ""
-        
+        st.session_state.confirmando_exclusao, st.session_state.chaves_para_excluir = False, set()
+        st.session_state.confirmando_status, st.session_state.chaves_para_status, st.session_state.novo_status, st.session_state.obs_status = False, set(), "", ""
         for key in MAP_KEYS.values():
             if key not in st.session_state:
                 st.session_state[key] = None if "data" in key else ""
@@ -289,8 +267,7 @@ def display_member_details(membro_dict):
     def display_field(label, value):
         if value and str(value).strip():
             st.markdown(f"**{label}:** {value}")
-
-    st.markdown("##### 👤 Dados Pessoais e Contato")
+    st.markdown("##### 👤 Dados Pessoais")
     col1, col2 = st.columns(2)
     with col1:
         display_field("CPF", membro_dict.get("CPF"))
@@ -301,7 +278,6 @@ def display_member_details(membro_dict):
         display_field("Celular", membro_dict.get("Celular"))
         display_field("Profissão", membro_dict.get("Profissão"))
     st.divider()
-    
     st.markdown("##### 👨‍👩‍👧 Filiação e Origem")
     col3, col4 = st.columns(2)
     with col3:
@@ -312,7 +288,6 @@ def display_member_details(membro_dict):
         display_field("Nacionalidade", membro_dict.get("Nacionalidade"))
         display_field("Naturalidade", membro_dict.get("Naturalidade"))
     st.divider()
-
     st.markdown("##### 🏠 Endereço")
     col5, col6 = st.columns(2)
     with col5:
@@ -323,7 +298,6 @@ def display_member_details(membro_dict):
         display_field("Cidade", membro_dict.get("Cidade"))
         display_field("UF", membro_dict.get("UF (Endereco)"))
     st.divider()
-    
     st.markdown("##### ⛪ Dados Eclesiásticos")
     col7, col8 = st.columns(2)
     with col7:
@@ -333,12 +307,10 @@ def display_member_details(membro_dict):
         display_field("Data de Admissão", membro_dict.get("Data de Admissao"))
         display_field("Data de Conversão", membro_dict.get("Data de Conversao"))
     st.divider()
-
     st.markdown("##### 📝 Observações")
     obs = membro_dict.get("Observações")
     if obs and obs.strip():
         st.text_area("", value=obs, height=100, disabled=True, label_visibility="collapsed")
-
 
 # --- C) Lógica Principal de Exibição ---
 init_state()
@@ -362,14 +334,10 @@ if not st.session_state.get("authenticated", False):
                             st.session_state.authenticated = True
                             st.session_state.username = email
                             st.rerun()
-                        else:
-                            st.error("Acesso não autorizado para este e-mail.")
-                    else:
-                        st.error("Resposta de autenticação não continha uma identidade válida.")
-                else:
-                    st.error("Resposta de autenticação inválida recebida do Google.")
-            except Exception as e:
-                st.error(f"Ocorreu um erro ao processar o login: {e}")
+                        else: st.error("Acesso não autorizado para este e-mail.")
+                    else: st.error("Resposta de autenticação não continha uma identidade válida.")
+                else: st.error("Resposta de autenticação inválida recebida do Google.")
+            except Exception as e: st.error(f"Ocorreu um erro ao processar o login: {e}")
 else:
     _, col_content = st.columns([1, 1])
     with col_content:
@@ -452,14 +420,12 @@ else:
             ativos = len(df_membros_tab2[df_membros_tab2['Status'].str.upper() == 'ATIVO'])
             inativos = len(df_membros_tab2[df_membros_tab2['Status'].str.upper() == 'INATIVO'])
             sem_status = total_membros - ativos - inativos
-            
             col1_metric, col2_metric, col3_metric, col4_metric = st.columns(4)
             col1_metric.metric("Total de Membros", f"{total_membros} 👥")
             col2_metric.metric("Membros Ativos", f"{ativos} 🟢")
             col3_metric.metric("Membros Inativos", f"{inativos} 🔴")
             col4_metric.metric("Status Não Definido", f"{sem_status} ⚪")
             st.divider()
-
             if st.session_state.get('confirmando_status', False):
                 novo_status = st.session_state.get('novo_status', 'DESCONHECIDO')
                 cor = "green" if novo_status == "ATIVO" else "red"
@@ -471,7 +437,6 @@ else:
                         st.button("Sim, confirmar alteração", use_container_width=True, type="primary", on_click=confirmar_mudanca_status)
                     with col_cancela:
                         st.button("Não, cancelar", use_container_width=True, on_click=cancelar_mudanca_status)
-            
             membros_selecionados_chaves = set()
             for index, membro in df_membros_tab2.iterrows():
                 with st.container(border=True):
@@ -486,7 +451,6 @@ else:
                         st.caption(f"CPF: {membro.get('CPF')} | Celular: {membro.get('Celular')}")
                     with st.expander("Ver Todos os Detalhes"):
                         display_member_details(membro)
-
             st.divider()
             sem_selecao = not bool(membros_selecionados_chaves)
             col1_act, col2_act, col3_act = st.columns([2,2,3])
@@ -517,21 +481,18 @@ else:
         with col_busca2:
             data_filtro = st.date_input("Buscar por Data de Nascimento", value=None, key="busca_data", min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY")
         st.info("Filtre para refinar a lista, ou selecione diretamente na lista completa abaixo para Excluir ou Exportar.")
-        
         df_original = pd.DataFrame(st.session_state.membros)
         if df_original.empty:
             st.warning("Não há membros cadastrados para exibir.")
         else:
             df_filtrado = df_original.copy()
             if 'CPF' in df_filtrado.columns: df_filtrado['CPF'] = df_filtrado['CPF'].astype(str)
-            
             if termo:
                 mask_termo = df_filtrado.apply(lambda row: termo in str(row.get('Nome', '')).upper() or termo in str(row.get('CPF', '')), axis=1)
                 df_filtrado = df_filtrado[mask_termo]
             if data_filtro:
                 data_filtro_str = data_filtro.strftime('%d/%m/%Y')
                 df_filtrado = df_filtrado[df_filtrado['Data de Nascimento'] == data_filtro_str]
-
             if df_filtrado.empty:
                 st.warning("Nenhum membro encontrado com os critérios de busca especificados.")
             else:
@@ -549,7 +510,6 @@ else:
                             st.subheader(f"{status_icon} {membro.get('Nome')}")
                             st.caption(f"CPF: {membro.get('CPF')} | Data de Admissão: {membro.get('Data de Admissao')}")
                 st.divider()
-
                 sem_selecao = not bool(chaves_selecionadas_excluir)
                 col1_del, col2_del, col3_del = st.columns(3)
                 if st.session_state.get('confirmando_exclusao', False):
@@ -574,9 +534,10 @@ else:
                             st.rerun()
                     with col2_del:
                         df_para_exportar = df_original[df_original.apply(lambda row: (row['Nome'], row['Data de Nascimento']) in chaves_selecionadas_excluir, axis=1)]
+                        df_excel = df_para_exportar.drop(columns=['Selecionar'], errors='ignore')
                         output_excel = BytesIO()
                         with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
-                            df_para_exportar.to_excel(writer, index=False, sheet_name='Membros')
+                            df_excel.to_excel(writer, index=False, sheet_name='Membros')
                         excel_data = output_excel.getvalue()
                         st.download_button(label="📄 Exportar Excel (.xlsx)", data=excel_data, file_name="membros_selecionados.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True, disabled=sem_selecao)
                     with col3_del:
@@ -614,7 +575,12 @@ else:
         st.header("Gerar Ficha Individual de Membro")
         if "membros" in st.session_state and st.session_state.membros:
             lista_nomes = [""] + sorted([m.get("Nome", "") for m in st.session_state.membros if m.get("Nome")])
-            membro_selecionado_nome = st.selectbox("Selecione ou digite o nome do membro para gerar a ficha:", options=lista_nomes, placeholder="Selecione um membro...", index=0)
+            membro_selecionado_nome = st.selectbox(
+                "Selecione ou digite o nome do membro para gerar a ficha:", 
+                options=lista_nomes,
+                placeholder="Selecione um membro...",
+                index=0
+            )
             if membro_selecionado_nome:
                 membro_dict = next((m for m in st.session_state.membros if m.get("Nome") == membro_selecionado_nome), None)
                 if membro_dict:
@@ -625,7 +591,6 @@ else:
                     if st.button("📄 Exportar Ficha como PDF", key="export_ficha_pdf"):
                         with st.spinner("Gerando PDF da ficha..."):
                             pdf_data = criar_pdf_ficha(membro_dict)
-                            # Usa um truque com st.link_button para um download mais estável em alguns casos
                             st.download_button(
                                 label="Clique para Baixar o PDF",
                                 data=pdf_data,
