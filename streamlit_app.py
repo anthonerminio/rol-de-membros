@@ -11,10 +11,10 @@ from io import BytesIO
 from streamlit_oauth import OAuth2Component
 import jwt
 
-# --- 1) Configuração da página (DEVE SER O PRIMEIRO COMANDO STREAMLIT) ---
+# --- 1) Configuração da página ---
 st.set_page_config(layout="wide", page_title="Fichário de Membros PIB Gaibu")
 
-# --- A) Parâmetros de Login Google (lendo dos Segredos) ---
+# --- A) Parâmetros de Login Google ---
 try:
     GOOGLE_CLIENT_ID = st.secrets["google_oauth"]["client_id"]
     GOOGLE_CLIENT_SECRET = st.secrets["google_oauth"]["client_secret"]
@@ -110,7 +110,10 @@ def carregar_membros():
         ws.insert_row(HEADERS, 1)
         return []
     records = ws.get_all_records()
+    # CORREÇÃO: Garante que todos os CPFs sejam carregados como texto (string)
     for record in records:
+        if 'CPF' in record:
+            record['CPF'] = str(record['CPF'])
         for header in HEADERS:
             if header not in record:
                 record[header] = ""
@@ -143,7 +146,7 @@ def buscar_cep(cep):
         if resp.status_code == 200:
             data = resp.json()
             if "erro" not in data:
-                return {"endereco": f"{data.get('logradouro', '')}", "bairro": data.get("bairro", ""), "cidade": data.get("localidade", ""), "uf": data.get("uf", "")}
+                return {"endereco": f"{data.get('logradouro', '')} {data.get('complemento', '')}".strip(), "bairro": data.get("bairro", ""), "cidade": data.get("localidade", ""), "uf_end": data.get("uf", "")}
     except Exception:
         pass
     return None
@@ -151,7 +154,6 @@ def buscar_cep(cep):
 MAP_KEYS = {"Nome": "nome", "CPF": "cpf", "Sexo": "sexo", "Estado Civil": "estado_civil", "Profissão": "profissao", "Forma de Admissao": "forma_admissao", "Data de Nascimento": "data_nasc", "Nacionalidade": "nacionalidade", "Naturalidade": "naturalidade", "UF (Naturalidade)": "uf_nat", "Nome do Pai": "nome_pai", "Nome da Mae": "nome_mae", "Nome do(a) Cônjuge": "conjuge", "CEP": "cep", "Endereco": "endereco", "Bairro": "bairro", "Cidade": "cidade", "UF (Endereco)": "uf_end", "Grau de Instrução": "grau_ins", "Celular": "celular", "Data de Conversao": "data_conv", "Data de Admissao": "data_adm", "Status": "status", "Observações": "observacoes"}
 
 def limpar_formulario():
-    """Limpa os campos do formulário no session_state."""
     for key in MAP_KEYS.values():
         if "data" in key:
             st.session_state[key] = None
@@ -246,11 +248,10 @@ else:
                 st.text_input("Naturalidade", key="naturalidade")
                 st.selectbox("UF (Naturalidade)", [""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"], key="uf_nat")
             st.subheader("Endereço")
-            c5, c6 = st.columns([1, 3])
-            with c5:
+            col_cep, col_btn_cep, col_spacer = st.columns([1,1,2])
+            with col_cep:
                 cep_input = st.text_input("CEP", key="cep")
-            # CORREÇÃO 1: Botão de buscar CEP agora é um st.form_submit_button
-            with c6:
+            with col_btn_cep:
                 buscar_cep_btn = st.form_submit_button("🔎 Buscar CEP")
             
             if buscar_cep_btn:
@@ -293,10 +294,9 @@ else:
                 else: novo[header] = valor
             
             cpf_digitado = novo.get("CPF")
-            # CORREÇÃO 2: Lógica de validação do CPF ajustada
             is_duplicado = False
-            if cpf_digitado: # Apenas checa duplicidade se um CPF foi fornecido
-                is_duplicado = any(m.get("CPF") == cpf_digitado for m in st.session_state.membros)
+            if cpf_digitado:
+                is_duplicado = any(str(m.get("CPF")) == cpf_digitado for m in st.session_state.membros)
 
             if is_duplicado:
                 st.error("Já existe um membro cadastrado com este CPF.")
@@ -330,18 +330,25 @@ else:
             termo = st.text_input("Buscar por Nome ou CPF", key="busca_termo").strip().upper()
         with col_busca2:
             data_filtro = st.date_input("Buscar por Data de Nascimento", value=None, key="busca_data", min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY")
+        
         st.info("Filtre para refinar a lista, ou selecione diretamente na lista completa abaixo para Excluir ou Exportar.")
+        
         df_original = pd.DataFrame(st.session_state.membros)
         if df_original.empty:
             st.warning("Não há membros cadastrados para exibir.")
         else:
             df_filtrado = df_original.copy()
+            # Garante que a coluna CPF seja string para a busca
+            if 'CPF' in df_filtrado.columns:
+                df_filtrado['CPF'] = df_filtrado['CPF'].astype(str)
+            
             if termo:
                 mask_termo = df_filtrado.apply(lambda row: termo in str(row.get('Nome', '')).upper() or termo in str(row.get('CPF', '')), axis=1)
                 df_filtrado = df_filtrado[mask_termo]
             if data_filtro:
                 data_filtro_str = data_filtro.strftime('%d/%m/%Y')
                 df_filtrado = df_filtrado[df_filtrado['Data de Nascimento'] == data_filtro_str]
+
             if df_filtrado.empty:
                 st.warning("Nenhum membro encontrado com os critérios de busca especificados.")
             else:
@@ -357,7 +364,7 @@ else:
                         st.warning(f"Deseja realmente deletar os {len(st.session_state.cpfs_para_excluir)} itens selecionados?")
                         c1, c2 = st.columns(2)
                         if c1.button("Sim, excluir definitivamente", use_container_width=True, type="primary"):
-                            membros_atualizados = [m for m in st.session_state.membros if m.get("CPF") not in st.session_state.cpfs_para_excluir]
+                            membros_atualizados = [m for m in st.session_state.membros if str(m.get("CPF")) not in st.session_state.cpfs_para_excluir]
                             st.session_state.membros = membros_atualizados
                             salvar_membros(membros_atualizados)
                             st.session_state.confirmando_exclusao = False
@@ -371,7 +378,8 @@ else:
                 else:
                     with col1:
                         if st.button("🗑️ Excluir Registros Selecionados", use_container_width=True, disabled=sem_selecao):
-                            st.session_state.cpfs_para_excluir = set(registros_selecionados["CPF"])
+                            # CORREÇÃO: Garante que os CPFs selecionados sejam strings
+                            st.session_state.cpfs_para_excluir = set(registros_selecionados["CPF"].astype(str))
                             st.session_state.confirmando_exclusao = True
                             st.rerun()
                     with col2:
