@@ -168,15 +168,22 @@ if not st.session_state.get("authenticated", False):
         if token:
             try:
                 id_token = token.get("id_token")
-                # ** A CORREÇÃO ESTÁ AQUI **
-                user_info = jwt.decode(id_token.encode('utf-8'), options={"verify_signature": False})
-                email = user_info.get("email", "")
-                if email in EMAILS_PERMITIDOS:
-                    st.session_state.authenticated = True
-                    st.session_state.username = email
-                    st.rerun()
+                
+                # Lógica robusta que valida a existência e o tipo do token
+                if id_token and isinstance(id_token, str):
+                    # Converte para bytes e decodifica
+                    user_info = jwt.decode(id_token.encode('utf-8'), options={"verify_signature": False})
+                    email = user_info.get("email", "")
+
+                    if email in EMAILS_PERMITIDOS:
+                        st.session_state.authenticated = True
+                        st.session_state.username = email
+                        st.rerun()
+                    else:
+                        st.error("Acesso não autorizado para este e-mail.")
                 else:
-                    st.error("Acesso não autorizado para este e-mail.")
+                    st.error("Resposta de autenticação inválida recebida do Google.")
+
             except Exception as e:
                 st.error(f"Ocorreu um erro ao processar o login: {e}")
 else:
@@ -235,23 +242,23 @@ else:
             with c5:
                 st.text_area("Observações", key="observacoes", height=80)
             if st.form_submit_button("💾 Salvar Membro"):
-                novo = {h: st.session_state.get(h.lower().replace(" (", "_").replace(")", "").replace(" ", "_").replace("ç", "c").replace("ã", "a"), "") for h in HEADERS}
-                for k, v in novo.items():
-                    if isinstance(v, str): novo[k] = v.strip().upper()
-                
-                datas = ["Data de Nascimento", "Data de Conversao", "Data de Admissao"]
-                for d_key in datas:
-                    ss_key = d_key.lower().replace(" ", "_")
-                    if st.session_state.get(ss_key):
-                        novo[d_key] = st.session_state[ss_key].strftime('%d/%m/%Y')
+                # Lógica para criar o dicionário 'novo'
+                novo = {}
+                for h in HEADERS:
+                    # Cria a chave do session_state a partir do header
+                    ss_key = h.lower().replace(" (", "_").replace(")", "").replace(" ", "_").replace("ç", "c").replace("ã", "a")
+                    # Casos especiais para chaves que não batem com o padrão
+                    if h == "UF (Naturalidade)": ss_key = "uf_nat"
+                    if h == "UF (Endereco)": ss_key = "uf_end"
+                    
+                    valor = st.session_state.get(ss_key, "")
+                    if isinstance(valor, str):
+                        novo[h] = valor.strip().upper()
+                    elif isinstance(valor, date):
+                        novo[h] = valor.strftime('%d/%m/%Y')
                     else:
-                        novo[d_key] = ""
+                        novo[h] = valor
                 
-                # Campos que não seguem o padrão de nome
-                novo["Sexo"] = st.session_state.sexo
-                novo["UF (Naturalidade)"] = st.session_state.uf_nat
-                novo["UF (Endereco)"] = st.session_state.uf_end
-
                 if novo["CPF"] and any(m["CPF"] == novo["CPF"] for m in st.session_state.membros):
                     st.error("Já existe um membro cadastrado com este CPF.")
                 else:
@@ -327,12 +334,4 @@ else:
                         with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
                             df_excel.to_excel(writer, index=False, sheet_name='Membros')
                         excel_data = output_excel.getvalue()
-                        st.download_button(label="📄 Exportar Excel (.xlsx)", data=excel_data, file_name="membros_selecionados.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True, disabled=sem_selecao)
-                    with col3:
-                        df_pdf = registros_selecionados.drop(columns=['Selecionar'])
-                        pdf_data = criar_pdf(df_pdf)
-                        st.download_button(label="📕 Exportar PDF (.pdf)", data=pdf_data, file_name="membros_selecionados.pdf", mime="application/pdf", use_container_width=True, disabled=sem_selecao)
-            else:
-                st.info("Nenhum membro encontrado com os critérios de busca.")
-        else:
-            st.info("Utilize um dos filtros acima para iniciar a busca.")
+                        st.download_button(label="📄 Exportar Excel (.xlsx)", data=excel_data, file_name="membros_
