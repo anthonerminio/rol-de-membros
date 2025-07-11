@@ -330,14 +330,13 @@ with tab2:
             if st.session_state.get('confirmando_status'):
                 st.warning(f"Alterar status de {len(st.session_state.chaves_para_status)} membro(s) para {st.session_state.novo_status}?")
                 c1, c2 = st.columns(2)
-                if c1.button("Sim, confirmar", type="primary", use_container_width=True):
+                               if c1.button("Sim, confirmar", type="primary", use_container_width=True):
                     membros_atuais = carregar_membros()
                     for m in membros_atuais:
                         if (m.get('Nome'), m.get('Data de Nascimento')) in st.session_state.chaves_para_status:
                             m['Status'] = st.session_state.novo_status
                     salvar_membros(membros_atuais)
                     st.toast("Status alterado com sucesso!")
-                    # Limpa o estado da confirmação
                     st.session_state.confirmando_status = False
                     st.rerun()
                 if c2.button("Cancelar", use_container_width=True):
