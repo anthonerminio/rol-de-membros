@@ -34,11 +34,43 @@ except (KeyError, FileNotFoundError):
 
 # --- Funções Auxiliares ---
 def criar_pdf(df):
-    # ... (código da função inalterado) ...
+    pdf = FPDF(orientation='L', unit='mm', format='A4')
+    pdf.add_page()
+    pdf.set_font('helvetica', 'B', 10)
+    cols = df.columns
+    col_widths = {'Selecionar': 25, 'Nome': 60, 'CPF': 30, 'Status': 20}
+    line_height = pdf.font_size * 2.5
+    for col in cols:
+        width = col_widths.get(col, 28)
+        pdf.cell(width, line_height, col, border=1, ln=0, align='C')
+    pdf.ln(line_height)
+    pdf.set_font('helvetica', '', 9)
+    for index, row in df.iterrows():
+        for col in cols:
+            width = col_widths.get(col, 28)
+            text = str(row[col]).encode('latin-1', 'replace').decode('latin-1')
+            pdf.cell(width, line_height, text, border=1, ln=0, align='L')
+        pdf.ln(line_height)
     return bytes(pdf.output(dest='S'))
 
 def criar_pdf_aniversariantes(df, mes_nome):
-    # ... (código da função inalterado) ...
+    pdf = FPDF(orientation='P', unit='mm', format='A4')
+    pdf.add_page()
+    pdf.set_font('helvetica', 'B', 16)
+    pdf.cell(0, 10, f'Aniversariantes de {mes_nome}', 0, 1, 'C')
+    pdf.ln(10)
+    
+    pdf.set_font('helvetica', 'B', 12)
+    pdf.cell(130, 10, 'Nome Completo', 1, 0, 'C')
+    pdf.cell(60, 10, 'Data de Nascimento', 1, 1, 'C')
+    
+    pdf.set_font('helvetica', '', 11)
+    for index, row in df.iterrows():
+        nome = str(row['Nome Completo']).encode('latin-1', 'replace').decode('latin-1')
+        data_nasc = str(row['Data de Nascimento Completa']).encode('latin-1', 'replace').decode('latin-1')
+        pdf.cell(130, 10, nome, 1, 0, 'L')
+        pdf.cell(60, 10, data_nasc, 1, 1, 'C')
+        
     return bytes(pdf.output(dest='S'))
 
 # --- Funções de Dados (Google Sheets) ---
@@ -59,7 +91,6 @@ def get_client(creds):
 
 gc = get_client(creds_dict)
 
-# ALTERAÇÃO PRINCIPAL: Nova ordem dos cabeçalhos
 HEADERS = [
     "Nome", "CPF", "Sexo", "Estado Civil", "Profissão", "Forma de Admissao",
     "Data de Nascimento", "Nacionalidade", "Naturalidade", "UF (Naturalidade)",
@@ -82,7 +113,6 @@ def carregar_membros():
         ws = sh.add_worksheet(title=NOME_ABA, rows="100", cols=len(HEADERS))
         ws.insert_row(HEADERS, 1)
         return []
-    # Garante que todos os registros tenham todas as chaves dos HEADERS
     records = ws.get_all_records()
     for record in records:
         for header in HEADERS:
@@ -94,7 +124,7 @@ def salvar_membros(lista):
     try:
         ws = gc.open(NOME_PLANILHA).worksheet(NOME_ABA)
         ws.clear()
-        ws.insert_row(HEADERS, 1) # Usa a nova ordem de cabeçalhos
+        ws.insert_row(HEADERS, 1)
         if lista:
             rows = [[str(m.get(h, '')) for h in HEADERS] for m in lista]
             ws.append_rows(rows, value_input_option="USER_ENTERED")
@@ -103,7 +133,6 @@ def salvar_membros(lista):
     except Exception as e:
         st.error(f"Erro ao salvar: {e}")
 
-# ... (demais funções auxiliares como formatar_datas, buscar_cep permanecem iguais) ...
 def formatar_datas(df, colunas):
     for col in colunas:
         if col in df.columns:
@@ -133,9 +162,7 @@ def init_state():
         st.session_state.confirmando_exclusao = False
         st.session_state.cpfs_para_excluir = set()
         
-        # Mapeamento para inicializar o estado do formulário
         map_keys = {"Nome": "nome", "CPF": "cpf", "Sexo": "sexo", "Estado Civil": "estado_civil", "Profissão": "profissao", "Forma de Admissao": "forma_admissao", "Data de Nascimento": "data_nasc", "Nacionalidade": "nacionalidade", "Naturalidade": "naturalidade", "UF (Naturalidade)": "uf_nat", "Nome do Pai": "nome_pai", "Nome da Mae": "nome_mae", "Nome do(a) Cônjuge": "conjuge", "CEP": "cep", "Endereco": "endereco", "Bairro": "bairro", "Cidade": "cidade", "UF (Endereco)": "uf_end", "Grau de Instrução": "grau_ins", "Celular": "celular", "Data de Conversao": "data_conv", "Data de Admissao": "data_adm", "Status": "status", "Observações": "observacoes"}
-
         for key in map_keys.values():
             if key not in st.session_state:
                 st.session_state[key] = None if "data" in key else ""
@@ -151,7 +178,7 @@ if not st.session_state.get("authenticated", False):
         st.markdown("<h1 style='text-align: center;'>Fichário de Membros</h1>", unsafe_allow_html=True)
         st.markdown("<h3 style='text-align: center; color: grey;'>PIB Gaibu</h3>", unsafe_allow_html=True)
         st.markdown("---")
-        token_response = oauth2.authorize_button( "Entrar com Google", key="google_login", redirect_uri=GOOGLE_REDIRECT_URI, scope="openid email profile")
+        token_response = oauth2.authorize_button("Entrar com Google", key="google_login", redirect_uri=GOOGLE_REDIRECT_URI, scope="openid email profile")
         if token_response:
             try:
                 nested_token = token_response.get("token")
@@ -164,10 +191,14 @@ if not st.session_state.get("authenticated", False):
                             st.session_state.authenticated = True
                             st.session_state.username = email
                             st.rerun()
-                        else: st.error("Acesso não autorizado para este e-mail.")
-                    else: st.error("Resposta de autenticação não continha uma identidade válida.")
-                else: st.error("Resposta de autenticação inválida recebida do Google.")
-            except Exception as e: st.error(f"Ocorreu um erro ao processar o login: {e}")
+                        else:
+                            st.error("Acesso não autorizado para este e-mail.")
+                    else:
+                        st.error("Resposta de autenticação não continha uma identidade válida.")
+                else:
+                    st.error("Resposta de autenticação inválida recebida do Google.")
+            except Exception as e:
+                st.error(f"Ocorreu um erro ao processar o login: {e}")
 else:
     _, col_content = st.columns([1, 1])
     with col_content:
@@ -186,7 +217,6 @@ else:
     with tab1:
         st.header("Cadastro de Novos Membros")
         with st.form("form_membro", clear_on_submit=True):
-            
             st.subheader("Informações Pessoais")
             c1, c2 = st.columns(2)
             with c1:
@@ -221,24 +251,25 @@ else:
                         st.session_state.endereco, st.session_state.bairro, st.session_state.cidade, st.session_state.uf_end = dados_cep["endereco"], dados_cep["bairro"], dados_cep["cidade"], dados_cep["uf"]
                         st.success("Endereço preenchido!")
                     elif cep_input: st.warning("CEP não encontrado ou inválido.")
-            c7, c8, c9 = st.columns(3)
+            c7, c8, c9, c10 = st.columns(4)
             with c7:
                 st.text_input("Endereço", key="endereco")
             with c8:
                 st.text_input("Bairro", key="bairro")
             with c9:
                 st.text_input("Cidade", key="cidade")
+            with c10:
                 st.selectbox("UF (Endereço)", [""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"], key="uf_end")
 
             st.subheader("Informações Adicionais")
-            c10, c11, c12 = st.columns(3)
-            with c10:
+            c11, c12, c13 = st.columns(3)
+            with c11:
                 st.selectbox("Grau de Instrução", ["", "Fundamental Incompleto", "Fundamental Completo", "Médio Incompleto", "Médio Completo", "Superior Incompleto", "Superior Completo", "Pós-graduação", "Mestrado", "Doutorado"], key="grau_ins")
                 st.selectbox("Status", ["Ativo", "Inativo"], key="status")
-            with c11:
+            with c12:
                 st.date_input("Data de Conversão", key="data_conv", min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY")
                 st.date_input("Data de Admissão", key="data_adm", min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY")
-            with c12:
+            with c13:
                  st.text_area("Observações", key="observacoes")
 
             st.markdown("---")
@@ -259,13 +290,12 @@ else:
                     st.success("Membro salvo com sucesso!")
 
     with tab2:
-        # Conteúdo da Aba 2 (Lista de Membros)
         st.header("Lista de Membros")
         if "membros" in st.session_state and st.session_state.membros:
-            df2 = pd.DataFrame(st.session_state.membros)
+            df2 = pd.DataFrame(st.session_state.membros).reindex(columns=HEADERS)
             if 'Status' in df2.columns:
                 df2['Situação'] = df2['Status'].apply(lambda s: '🟢' if str(s).upper() == 'ATIVO' else '🔴' if str(s).upper() == 'INATIVO' else '⚪')
-                colunas_ordenadas = ['Situação'] + [col for col in df2.columns if col != 'Situação']
+                colunas_ordenadas = ['Situação'] + HEADERS
                 df2 = df2[colunas_ordenadas]
             df2_formatado = formatar_datas(df2.copy(), ["Data de Nascimento", "Data de Conversao", "Data de Admissao"])
             st.dataframe(df2_formatado, use_container_width=True, hide_index=True)
@@ -276,7 +306,6 @@ else:
             st.info("Nenhum membro cadastrado.")
 
     with tab3:
-        # Conteúdo da Aba 3 (Buscar e Excluir)
         st.header("Buscar, Exportar e Excluir Membros")
         col_busca1, col_busca2 = st.columns(2)
         with col_busca1:
