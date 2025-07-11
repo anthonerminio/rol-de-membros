@@ -1,5 +1,7 @@
-streamlit>=1.30.0 # Garante uma versão moderna de Streamlit
+streamlit
 pandas
 gspread
-oauth2client
+openpyxl
+streamlit-oauth
 requests
+fpdf2
