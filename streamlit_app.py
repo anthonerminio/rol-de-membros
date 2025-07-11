@@ -174,6 +174,7 @@ def buscar_cep(cep):
     return None
 
 MAP_KEYS = {"Nome": "nome", "CPF": "cpf", "Sexo": "sexo", "Estado Civil": "estado_civil", "Profissão": "profissao", "Forma de Admissao": "forma_admissao", "Data de Nascimento": "data_nasc", "Nacionalidade": "nacionalidade", "Naturalidade": "naturalidade", "UF (Naturalidade)": "uf_nat", "Nome do Pai": "nome_pai", "Nome da Mae": "nome_mae", "Nome do(a) Cônjuge": "conjuge", "CEP": "cep", "Endereco": "endereco", "Bairro": "bairro", "Cidade": "cidade", "UF (Endereco)": "uf_end", "Grau de Instrução": "grau_ins", "Celular": "celular", "Data de Conversao": "data_conv", "Data de Admissao": "data_adm", "Status": "status", "Observações": "observacoes"}
+UF_CHOICES = ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"]
 
 def limpar_formulario():
     for key in MAP_KEYS.values():
@@ -198,7 +199,6 @@ def init_state():
     if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
         st.session_state.username = ""
-    # Inicializa chaves de confirmação se não existirem
     for key in ['confirmando_exclusao', 'confirmando_status']:
         if key not in st.session_state:
             st.session_state[key] = False
@@ -290,11 +290,8 @@ else:
             with c13: st.text_area("Observações", key="observacoes")
             st.markdown("---"); st.form_submit_button("💾 Salvar Membro", on_click=submeter_formulario)
 
-with tab2:
+    with tab2:
         st.header("Visão Geral da Membresia")
-        membros_data = carregar_membros()
-        df_membros = pd.DataFrame(membros_data)
-
         if not df_membros.empty:
             total_membros = len(df_membros)
             ativos = len(df_membros[df_membros['Status'].str.upper() == 'ATIVO'])
@@ -305,13 +302,27 @@ with tab2:
             c3.metric("Membros Inativos", f"{inativos} 🔴")
             st.divider()
 
-            # Captura de seleções
             chaves_selecionadas = set()
+            # Loop para exibir os membros com checkboxes dentro dos cards
             for index, row in df_membros.iterrows():
-                chave_membro = (row.get('Nome'), row.get('Data de Nascimento'))
-                if st.checkbox("", key=f"select_list_{index}"):
-                    chaves_selecionadas.add(chave_membro)
+                with st.container(border=True):
+                    col_check, col_info = st.columns([0.6, 15])
+                    chave_membro = (row.get('Nome'), row.get('Data de Nascimento'))
+                    
+                    # O checkbox agora fica dentro do card
+                    selecionado = col_check.checkbox("", key=f"select_list_{index}")
+                    if selecionado:
+                        chaves_selecionadas.add(chave_membro)
+                    
+                    with col_info:
+                        status_icon = '🟢' if str(row.get('Status')).upper() == 'ATIVO' else '🔴' if str(row.get('Status')).upper() == 'INATIVO' else '⚪'
+                        st.subheader(f"{status_icon} {row.get('Nome')}")
+                        
+                        forma_adm = row.get('Forma de Admissao', 'N/A')
+                        data_adm = row.get('Data de Admissao', 'N/A')
+                        st.caption(f"CPF: {row.get('CPF', 'N/A')} | Celular: {row.get('Celular', 'N/A')} | Admissão: {forma_adm} em {data_adm}")
             
+            st.divider()
             st.subheader("Ações para Itens Selecionados na Lista")
             col_ativo, col_inativo = st.columns(2)
 
@@ -331,11 +342,14 @@ with tab2:
                 st.warning(f"Alterar status de {len(st.session_state.chaves_para_status)} membro(s) para {st.session_state.novo_status}?")
                 c1, c2 = st.columns(2)
                 if c1.button("Sim, confirmar", type="primary", use_container_width=True):
-                    # ... (código para salvar os membros) ...
+                    membros_atuais = carregar_membros()
+                    for m in membros_atuais:
+                        if (m.get('Nome'), m.get('Data de Nascimento')) in st.session_state.chaves_para_status:
+                            m['Status'] = st.session_state.novo_status
                     salvar_membros(membros_atuais)
                     st.toast("Status alterado com sucesso!")
                     
-                    # ADICIONE ESTAS 4 LINHAS AQUI PARA LIMPAR AS SELEÇÕES
+                    # Limpa as seleções após a ação
                     for i in range(len(membros_atuais)):
                         if f"select_list_{i}" in st.session_state:
                             st.session_state[f"select_list_{i}"] = False
@@ -345,40 +359,21 @@ with tab2:
                 if c2.button("Cancelar", use_container_width=True):
                     st.session_state.confirmando_status = False
                     st.rerun()
-            
-            st.divider()
-            for index, row in df_membros.iterrows():
-                with st.container(border=True):
-                    status_icon = '🟢' if str(row.get('Status')).upper() == 'ATIVO' else '🔴' if str(row.get('Status')).upper() == 'INATIVO' else '⚪'
-                    st.subheader(f"{status_icon} {row.get('Nome')}")
-                    
-                    # Informações adicionadas ao card
-                    forma_adm = row.get('Forma de Admissao', 'N/A')
-                    data_adm = row.get('Data de Admissao', 'N/A')
-                    st.caption(f"CPF: {row.get('CPF', 'N/A')} | Celular: {row.get('Celular', 'N/A')} | Admissão: {forma_adm} em {data_adm}")
-                    
-                    with st.expander("Ver Todos os Detalhes"):
-                        display_member_details(row.to_dict(), f"list_{index}")
         else:
             st.info("Nenhum membro cadastrado.")
 
 
-with tab3:
+    with tab3:
         st.header("Buscar e Realizar Ações")
         termo = st.text_input("Buscar por Nome ou CPF", key="busca_termo").strip().upper()
 
         if termo:
-            membros_data = carregar_membros()
             df_original = pd.DataFrame(membros_data)
-
-            mask_termo = df_original.apply(
-                lambda row: termo in str(row.get('Nome', '')).upper() or termo in str(row.get('CPF', '')),
-                axis=1
-            )
+            mask_termo = df_original.apply(lambda row: termo in str(row.get('Nome', '')).upper() or termo in str(row.get('CPF', '')), axis=1)
             df_filtrado = df_original[mask_termo]
 
             if df_filtrado.empty:
-                st.warning("Nenhum membro encontrado com os critérios de busca especificados.")
+                st.warning("Nenhum membro encontrado.")
             else:
                 st.divider()
                 st.subheader(f"Resultados da Busca: {len(df_filtrado)} membro(s) encontrado(s)")
@@ -413,16 +408,15 @@ with tab3:
 
         if st.session_state.get('confirmando_exclusao'):
             chaves_para_excluir = st.session_state.get('chaves_para_excluir', set())
-            st.warning(f"Deseja realmente deletar os {len(chaves_para_excluir)} itens selecionados? Esta ação não pode ser desfeita.")
+            st.warning(f"Deseja realmente deletar os {len(chaves_para_excluir)} itens selecionados?")
             c1, c2 = st.columns(2)
-            if c1.button("Sim, excluir definitivamente", use_container_width=True, type="primary"):
+            if c1.button("Sim, excluir", use_container_width=True, type="primary"):
                 membros_atuais = carregar_membros()
                 membros_atualizados = [m for m in membros_atuais if (m.get('Nome'), m.get('Data de Nascimento')) not in chaves_para_excluir]
                 salvar_membros(membros_atualizados)
                 st.session_state.confirmando_exclusao = False
-                st.success("Registros excluídos!")
                 st.rerun()
-            if c2.button("Não, voltar", use_container_width=True):
+            if c2.button("Cancelar", use_container_width=True):
                 st.session_state.confirmando_exclusao = False
                 st.rerun()
 
@@ -451,7 +445,6 @@ with tab3:
                     if not inativos_df.empty: st.markdown("#### 🔴 Aniversariantes Inativos"); st.dataframe(inativos_df[['Dia', 'Nome', 'Data de Nascimento']].rename(columns=df_display_cols), use_container_width=True, hide_index=True)
                     if not outros_df.empty: st.markdown("#### ⚪ Aniversariantes com Status Não Definido"); st.dataframe(outros_df[['Dia', 'Nome', 'Data de Nascimento']].rename(columns=df_display_cols), use_container_width=True, hide_index=True)
                     st.divider()
-                    # Passando o dataframe original para a função de PDF
                     pdf_data = criar_pdf_aniversariantes(aniversariantes_do_mes, mes_selecionado)
                     st.download_button(label=f"📕 Exportar PDF de {mes_selecionado}", data=pdf_data, file_name=f"aniversariantes_{mes_selecionado.lower()}.pdf")
         else:
