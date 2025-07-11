@@ -88,7 +88,7 @@ def criar_pdf_aniversariantes(df, mes_nome):
     draw_status_table(pdf, "🟢 Aniversariantes Ativos", ativos_df)
     draw_status_table(pdf, "🔴 Aniversariantes Inativos", inativos_df)
     draw_status_table(pdf, "⚪ Aniversariantes com Status Não Definido", outros_df)
-
+    
     return bytes(pdf.output())
 
 
@@ -290,81 +290,104 @@ else:
             with c13: st.text_area("Observações", key="observacoes")
             st.markdown("---"); st.form_submit_button("💾 Salvar Membro", on_click=submeter_formulario)
 
-    with tab2:
+with tab2:
         st.header("Visão Geral da Membresia")
+        membros_data = carregar_membros()
+        df_membros = pd.DataFrame(membros_data)
+
         if not df_membros.empty:
-            total_membros = len(df_membros); ativos = len(df_membros[df_membros['Status'].str.upper() == 'ATIVO']); inativos = total_membros - ativos
-            c1,c2,c3 = st.columns(3); c1.metric("Total", f"{total_membros} 👥"); c2.metric("Ativos", f"{ativos} 🟢"); c3.metric("Inativos", f"{inativos} 🔴")
+            total_membros = len(df_membros)
+            ativos = len(df_membros[df_membros['Status'].str.upper() == 'ATIVO'])
+            inativos = total_membros - ativos
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Total de Membros", f"{total_membros} 👥")
+            c2.metric("Membros Ativos", f"{ativos} 🟢")
+            c3.metric("Membros Inativos", f"{inativos} 🔴")
             st.divider()
 
             # Captura de seleções
-            selecoes = {}
+            chaves_selecionadas = set()
             for index, row in df_membros.iterrows():
                 chave_membro = (row.get('Nome'), row.get('Data de Nascimento'))
-                selecoes[chave_membro] = st.checkbox("", key=f"select_list_{index}")
-
-            chaves_selecionadas = {chave for chave, selecionado in selecoes.items() if selecionado}
+                if st.checkbox("", key=f"select_list_{index}"):
+                    chaves_selecionadas.add(chave_membro)
             
             st.subheader("Ações para Itens Selecionados na Lista")
             col_ativo, col_inativo = st.columns(2)
+
             if col_ativo.button("🟢 Marcar como Ativos", use_container_width=True, disabled=not chaves_selecionadas):
-                st.session_state.confirmando_status = True; st.session_state.novo_status = "ATIVO"; st.session_state.chaves_para_status = chaves_selecionadas
+                st.session_state.confirmando_status = True
+                st.session_state.novo_status = "ATIVO"
+                st.session_state.chaves_para_status = chaves_selecionadas
                 st.rerun()
+
             if col_inativo.button("🔴 Marcar como Inativos", use_container_width=True, disabled=not chaves_selecionadas):
-                st.session_state.confirmando_status = True; st.session_state.novo_status = "INATIVO"; st.session_state.chaves_para_status = chaves_selecionadas
+                st.session_state.confirmando_status = True
+                st.session_state.novo_status = "INATIVO"
+                st.session_state.chaves_para_status = chaves_selecionadas
                 st.rerun()
 
             if st.session_state.get('confirmando_status'):
                 st.warning(f"Alterar status de {len(st.session_state.chaves_para_status)} membro(s) para {st.session_state.novo_status}?")
-                c1,c2 = st.columns(2)
+                c1, c2 = st.columns(2)
                 if c1.button("Sim, confirmar", type="primary", use_container_width=True):
                     membros_atuais = carregar_membros()
                     for m in membros_atuais:
                         if (m.get('Nome'), m.get('Data de Nascimento')) in st.session_state.chaves_para_status:
                             m['Status'] = st.session_state.novo_status
                     salvar_membros(membros_atuais)
-                    st.session_state.confirmando_status = False; st.rerun()
+                    st.toast("Status alterado com sucesso!")
+                    # Limpa o estado da confirmação
+                    st.session_state.confirmando_status = False
+                    st.rerun()
                 if c2.button("Cancelar", use_container_width=True):
-                    st.session_state.confirmando_status = False; st.rerun()
+                    st.session_state.confirmando_status = False
+                    st.rerun()
             
             st.divider()
             for index, row in df_membros.iterrows():
                 with st.container(border=True):
-                    # Lógica de seleção movida para o topo da aba
-                    st.write(f"**{row.get('Nome')}**")
-                    # ENHANCEMENT: Adicionando mais informações
+                    status_icon = '🟢' if str(row.get('Status')).upper() == 'ATIVO' else '🔴' if str(row.get('Status')).upper() == 'INATIVO' else '⚪'
+                    st.subheader(f"{status_icon} {row.get('Nome')}")
+                    
+                    # Informações adicionadas ao card
                     forma_adm = row.get('Forma de Admissao', 'N/A')
                     data_adm = row.get('Data de Admissao', 'N/A')
                     st.caption(f"CPF: {row.get('CPF', 'N/A')} | Celular: {row.get('Celular', 'N/A')} | Admissão: {forma_adm} em {data_adm}")
-
+                    
+                    with st.expander("Ver Todos os Detalhes"):
+                        display_member_details(row.to_dict(), f"list_{index}")
         else:
             st.info("Nenhum membro cadastrado.")
 
 
-    with tab3:
+with tab3:
         st.header("Buscar e Realizar Ações")
         termo = st.text_input("Buscar por Nome ou CPF", key="busca_termo").strip().upper()
-        
-        df_original = pd.DataFrame(membros_data)
-        if df_original.empty:
-            st.warning("Não há membros para buscar.")
-        elif termo:
-            mask_termo = df_original.apply(lambda row: termo in str(row.get('Nome', '')).upper() or termo in str(row.get('CPF', '')), axis=1)
+
+        if termo:
+            membros_data = carregar_membros()
+            df_original = pd.DataFrame(membros_data)
+
+            mask_termo = df_original.apply(
+                lambda row: termo in str(row.get('Nome', '')).upper() or termo in str(row.get('CPF', '')),
+                axis=1
+            )
             df_filtrado = df_original[mask_termo]
-            
+
             if df_filtrado.empty:
                 st.warning("Nenhum membro encontrado com os critérios de busca especificados.")
             else:
                 st.divider()
-                st.subheader("Resultados da Busca")
-                
-                selecoes_busca = {}
+                st.subheader(f"Resultados da Busca: {len(df_filtrado)} membro(s) encontrado(s)")
+
+                chaves_selecionadas_busca = set()
                 for index, row in df_filtrado.iterrows():
-                    chave = (row.get('Nome'), row.get('Data de Nascimento'))
-                    selecoes_busca[chave] = st.checkbox(f"{row.get('Nome')} (CPF: {row.get('CPF')})", key=f"select_search_{index}")
-
-                chaves_selecionadas_busca = {chave for chave, selecionado in selecoes_busca.items() if selecionado}
-
+                    chave_membro = (row.get('Nome'), row.get('Data de Nascimento'))
+                    if st.checkbox(f"{row.get('Nome')} (CPF: {row.get('CPF')})", key=f"search_{index}"):
+                        chaves_selecionadas_busca.add(chave_membro)
+                
+                st.divider()
                 st.subheader("Ações para Itens Selecionados")
                 col_excluir, col_excel, col_pdf = st.columns(3)
 
@@ -373,32 +396,33 @@ else:
                     st.session_state.chaves_para_excluir = chaves_selecionadas_busca
                     st.rerun()
 
-                # CORREÇÃO: Exportação usa apenas os itens selecionados
-                df_para_exportar = df_original[df_original.apply(lambda row: (row['Nome'], row['Data de Nascimento']) in chaves_selecionadas_busca, axis=1)]
-                
+                df_para_exportar = pd.DataFrame()
+                if chaves_selecionadas_busca:
+                    df_para_exportar = df_original[df_original.apply(lambda row: (row['Nome'], row['Data de Nascimento']) in chaves_selecionadas_busca, axis=1)]
+
                 output_excel = BytesIO()
                 with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
                     df_para_exportar.to_excel(writer, index=False, sheet_name='Membros')
                 excel_data = output_excel.getvalue()
+                col_excel.download_button("📄 Exportar Excel", data=excel_data, file_name="membros_selecionados.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True, disabled=not chaves_selecionadas_busca)
 
                 pdf_data = criar_pdf_lista(df_para_exportar)
+                col_pdf.download_button("📕 Exportar PDF", data=pdf_data, file_name="membros_selecionados.pdf", mime="application/pdf", use_container_width=True, disabled=not chaves_selecionadas_busca)
 
-                col_excel.download_button("📄 Exportar Excel", excel_data, "membros_selecionados.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True, disabled=not chaves_selecionadas_busca)
-                col_pdf.download_button("📕 Exportar PDF", pdf_data, "membros_selecionados.pdf", "application/pdf", use_container_width=True, disabled=not chaves_selecionadas_busca)
-
-                if st.session_state.get('confirmando_exclusao'):
-                    st.warning(f"Deseja realmente deletar os {len(st.session_state.chaves_para_excluir)} itens selecionados?")
-                    c1, c2 = st.columns(2)
-                    if c1.button("Sim, excluir definitivamente", use_container_width=True, type="primary"):
-                        membros_atuais = carregar_membros()
-                        # CORREÇÃO: Filtra corretamente os membros a serem mantidos
-                        membros_atualizados = [m for m in membros_atuais if (m.get('Nome'), m.get('Data de Nascimento')) not in st.session_state.chaves_para_excluir]
-                        salvar_membros(membros_atualizados)
-                        st.session_state.confirmando_exclusao = False
-                        st.rerun()
-                    if c2.button("Não, voltar", use_container_width=True):
-                        st.session_state.confirmando_exclusao = False
-                        st.rerun()
+        if st.session_state.get('confirmando_exclusao'):
+            chaves_para_excluir = st.session_state.get('chaves_para_excluir', set())
+            st.warning(f"Deseja realmente deletar os {len(chaves_para_excluir)} itens selecionados? Esta ação não pode ser desfeita.")
+            c1, c2 = st.columns(2)
+            if c1.button("Sim, excluir definitivamente", use_container_width=True, type="primary"):
+                membros_atuais = carregar_membros()
+                membros_atualizados = [m for m in membros_atuais if (m.get('Nome'), m.get('Data de Nascimento')) not in chaves_para_excluir]
+                salvar_membros(membros_atualizados)
+                st.session_state.confirmando_exclusao = False
+                st.success("Registros excluídos!")
+                st.rerun()
+            if c2.button("Não, voltar", use_container_width=True):
+                st.session_state.confirmando_exclusao = False
+                st.rerun()
 
     with tab4:
         st.header("Aniversariantes do Mês")
