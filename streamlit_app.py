@@ -1,4 +1,4 @@
-# Versão Final e Corrigida - v4.8
+# Versão Final e Corrigida - v4.9
 import streamlit as st
 import pandas as pd
 import gspread
@@ -13,7 +13,7 @@ from streamlit_oauth import OAuth2Component
 import jwt
 
 # --- 1) Configuração da página ---
-st.set_page_config(layout="wide", page_title="Fichário de Membros v4.8")
+st.set_page_config(layout="wide", page_title="Fichário de Membros v4.9")
 
 # --- A) Parâmetros de Login Google ---
 try:
@@ -274,13 +274,13 @@ if not st.session_state.get("authenticated", False):
             except Exception as e: st.error(f"Ocorreu um erro ao processar o login: {e}")
 else:
     # Área de usuário e ações globais no topo
-    col_user, col_reload, col_logout = st.columns([3, 1, 1])
+    col_user, col_reload, col_logout = st.columns([3, 1.2, 1])
     with col_user:
         st.info(f"**Usuário:** {st.session_state.get('username', '')}")
     with col_reload:
-        if st.button("🔄 Recarregar Dados", use_container_width=True):
+        if st.button("🔄 Sincronizar Dados", use_container_width=True):
             st.session_state.membros = carregar_membros()
-            st.toast("Dados recarregados com sucesso!")
+            st.toast("Dados sincronizados com sucesso!")
             st.rerun()
     with col_logout:
         if st.button("Sair", use_container_width=True):
@@ -335,8 +335,8 @@ else:
             col1_metric.metric("Total de Membros", f"{total_membros} 👥"); col2_metric.metric("Membros Ativos", f"{ativos} 🟢"); col3_metric.metric("Membros Inativos", f"{inativos} 🔴"); col4_metric.metric("Status Não Definido", f"{sem_status} ⚪")
             st.divider()
 
-            # Ações movidas da barra lateral para a aba
-            with st.expander("Ações em Lote para Itens Selecionados"):
+            # Layout de ações modificado para consistência
+            with st.expander("Ações para Itens Selecionados na Lista"):
                 sem_selecao_lista = not st.session_state.get("selecao_lista", set())
                 col_ativo, col_inativo = st.columns(2)
                 with col_ativo:
@@ -392,9 +392,9 @@ else:
             if data_filtro:
                 data_filtro_str = data_filtro.strftime('%d/%m/%Y'); df_filtrado = df_filtrado[df_filtrado['Data de Nascimento'] == data_filtro_str]
 
-            # Ações de busca movidas para esta aba
+            # Layout de ações modificado para consistência
             st.divider()
-            with st.expander("Ações para Itens Encontrados na Busca"):
+            with st.expander("Ações para Itens Selecionados na Busca"):
                 sem_selecao_busca = not st.session_state.get("selecao_busca", set())
                 col_excluir, col_excel, col_pdf = st.columns(3)
                 with col_excluir:
