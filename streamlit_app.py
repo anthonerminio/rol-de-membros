@@ -11,10 +11,10 @@ from io import BytesIO
 from streamlit_oauth import OAuth2Component
 import jwt
 
-# --- 1) Configuração da página (DEVE SER O PRIMEIRO COMANDO STREAMLIT) ---
+# --- 1) Configuração da página ---
 st.set_page_config(layout="wide", page_title="Fichário de Membros PIB Gaibu")
 
-# --- A) Parâmetros de Login Google (lendo dos Segredos) ---
+# --- A) Parâmetros de Login Google ---
 try:
     GOOGLE_CLIENT_ID = st.secrets["google_oauth"]["client_id"]
     GOOGLE_CLIENT_SECRET = st.secrets["google_oauth"]["client_secret"]
@@ -111,8 +111,7 @@ def carregar_membros():
         return []
     records = ws.get_all_records()
     for record in records:
-        if 'CPF' in record:
-            record['CPF'] = str(record['CPF'])
+        record['CPF'] = str(record.get('CPF', ''))
         for header in HEADERS:
             if header not in record:
                 record[header] = ""
@@ -160,16 +159,14 @@ def limpar_formulario():
             st.session_state[key] = ""
     st.session_state.sexo = "M"
 
-# CORREÇÃO 2: Lógica de salvamento movida para uma função de callback
 def submeter_formulario():
-    """Valida, salva e limpa o formulário."""
     novo = {}
     for header, key in MAP_KEYS.items():
         valor = st.session_state.get(key, "")
         if isinstance(valor, date): novo[header] = valor.strftime('%d/%m/%Y')
         elif isinstance(valor, str): novo[header] = valor.strip().upper()
         else: novo[header] = valor
-
+    
     cpf_digitado = novo.get("CPF")
     is_duplicado = False
     if cpf_digitado:
@@ -191,8 +188,7 @@ def init_state():
     if st.session_state.authenticated and "membros" not in st.session_state:
         st.session_state.membros = carregar_membros()
         st.session_state.confirmando_exclusao = False
-        st.session_state.cpfs_para_excluir = set()
-        
+        st.session_state.chaves_para_excluir = set()
         for key in MAP_KEYS.values():
             if key not in st.session_state:
                 st.session_state[key] = None if "data" in key else ""
@@ -246,7 +242,6 @@ else:
 
     with tab1:
         st.header("Cadastro de Novos Membros")
-        # CORREÇÃO 1: O botão de submit agora usa o callback on_click
         with st.form("form_membro"):
             st.subheader("Informações Pessoais")
             c1, c2 = st.columns(2)
@@ -358,24 +353,33 @@ else:
                 col1, col2, col3 = st.columns(3)
                 if st.session_state.get('confirmando_exclusao', False):
                     with st.expander("⚠️ CONFIRMAÇÃO DE EXCLUSÃO ⚠️", expanded=True):
-                        st.warning(f"Deseja realmente deletar os {len(st.session_state.cpfs_para_excluir)} itens selecionados?")
+                        st.warning(f"Deseja realmente deletar os {len(st.session_state.chaves_para_excluir)} itens selecionados?")
                         c1, c2 = st.columns(2)
                         if c1.button("Sim, excluir definitivamente", use_container_width=True, type="primary"):
-                            membros_atualizados = [m for m in st.session_state.membros if str(m.get("CPF")) not in st.session_state.cpfs_para_excluir]
+                            membros_atualizados = []
+                            for m in st.session_state.membros:
+                                chave_membro = (m.get('Nome'), m.get('Data de Nascimento'))
+                                if chave_membro not in st.session_state.chaves_para_excluir:
+                                    membros_atualizados.append(m)
+                            
                             st.session_state.membros = membros_atualizados
                             salvar_membros(membros_atualizados)
                             st.session_state.confirmando_exclusao = False
-                            st.session_state.cpfs_para_excluir = set()
+                            st.session_state.chaves_para_excluir = set()
                             st.success("Registros excluídos!")
                             st.rerun()
                         if c2.button("Não, voltar", use_container_width=True):
                             st.session_state.confirmando_exclusao = False
-                            st.session_state.cpfs_para_excluir = set()
+                            st.session_state.chaves_para_excluir = set()
                             st.rerun()
                 else:
                     with col1:
                         if st.button("🗑️ Excluir Registros Selecionados", use_container_width=True, disabled=sem_selecao):
-                            st.session_state.cpfs_para_excluir = set(registros_selecionados["CPF"].astype(str))
+                            # CORREÇÃO: Usa uma chave única (Nome + Data de Nascimento) para identificar os registros
+                            chaves_para_excluir = set()
+                            for index, row in registros_selecionados.iterrows():
+                                chaves_para_excluir.add((row['Nome'], row['Data de Nascimento']))
+                            st.session_state.chaves_para_excluir = chaves_para_excluir
                             st.session_state.confirmando_exclusao = True
                             st.rerun()
                     with col2:
