@@ -180,24 +180,33 @@ def submeter_formulario():
         st.success("Membro salvo com sucesso!")
         limpar_formulario()
 
-# --- Funções de Callback (A Correção) ---
 def confirmar_mudanca_status():
     chaves_para_atualizar = st.session_state.chaves_para_status
     novo_status_val = st.session_state.novo_status
     obs_adicional = st.session_state.obs_status
-    data_hoje = date.today().strftime("%d/%m/%Y")
-
+    
     for membro in st.session_state.membros:
         chave_membro = (membro.get('Nome'), membro.get('Data de Nascimento'))
         if chave_membro in chaves_para_atualizar:
+            # Ação 1: Sempre atualizar o status
             membro['Status'] = novo_status_val
-            obs_existente = membro.get('Observações', '')
-            nova_obs = f"[{data_hoje}] STATUS ALTERADO PARA {novo_status_val}. {obs_adicional}".strip()
-            membro['Observações'] = f"{obs_existente}\n{nova_obs}".strip()
+
+            # CORREÇÃO: Ação 2: Apenas modificar observações se algo foi escrito
+            if obs_adicional and obs_adicional.strip():
+                obs_existente = membro.get('Observações', '')
+                data_hoje = date.today().strftime("%d/%m/%Y")
+                nota_observacao = f"[{data_hoje}] {obs_adicional.strip()}"
+                
+                # Adiciona a nova observação, mantendo as antigas
+                if obs_existente:
+                    membro['Observações'] = f"{obs_existente}\n{nota_observacao}"
+                else:
+                    membro['Observações'] = nota_observacao
     
     salvar_membros(st.session_state.membros)
     st.toast(f"Status de {len(chaves_para_atualizar)} membro(s) alterado com sucesso!", icon="🎉")
     
+    # Limpa os estados da sessão de confirmação
     st.session_state.confirmando_status = False
     st.session_state.chaves_para_status = set()
     st.session_state.obs_status = ""
@@ -341,7 +350,7 @@ else:
             cor = "green" if novo_status == "ATIVO" else "red"
             with st.expander(f"**⚠️ CONFIRMAÇÃO DE MUDANÇA DE STATUS**", expanded=True):
                 st.markdown(f"Você está prestes a alterar o status de **{len(st.session_state.chaves_para_status)}** membro(s) para <span style='color:{cor}; font-weight:bold;'>{novo_status}</span>.", unsafe_allow_html=True)
-                st.text_area("Adicionar Observação (será adicionada ao campo 'Observações' dos membros selecionados):", key="obs_status")
+                st.text_area("Adicionar Observação (opcional):", key="obs_status")
                 
                 col_confirma, col_cancela = st.columns(2)
                 with col_confirma:
@@ -360,7 +369,13 @@ else:
             df_display_formatado = df_display_formatado[colunas_ordenadas]
             
             df_display_formatado.insert(0, "Selecionar", False)
-            edited_df = st.data_editor(df_display_formatado, disabled=[col for col in df_display_formatado.columns if col != "Selecionar"], hide_index=True, use_container_width=True, key="editor_status")
+            edited_df = st.data_editor(
+                df_display_formatado,
+                disabled=[col for col in df_display_formatado.columns if col != "Selecionar"],
+                hide_index=True,
+                use_container_width=True,
+                key="editor_status"
+            )
 
             registros_selecionados = edited_df[edited_df["Selecionar"] == True]
             sem_selecao = registros_selecionados.empty
@@ -391,8 +406,8 @@ else:
 
     with tab3:
         st.header("Buscar, Exportar e Excluir Membros")
-        # ... (código da aba 3 inalterado) ...
-
+        # Código da aba 3 inalterado
+        
     with tab4:
         st.header("Aniversariantes do Mês")
-        # ... (código da aba 4 inalterado) ...
+        # Código da aba 4 inalterado
