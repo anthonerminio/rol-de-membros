@@ -1,4 +1,4 @@
-# Versão Final Completa - v4.6
+# Versão Estável e Completa - v4.4.1
 import streamlit as st
 import pandas as pd
 import gspread
@@ -13,7 +13,7 @@ from streamlit_oauth import OAuth2Component
 import jwt
 
 # --- 1) Configuração da página ---
-st.set_page_config(layout="wide", page_title="Fichário de Membros v4.6")
+st.set_page_config(layout="wide", page_title="Fichário de Membros v4.4")
 
 # --- A) Parâmetros de Login Google ---
 try:
@@ -39,17 +39,14 @@ def criar_pdf_lista(df):
     pdf.add_page()
     pdf.add_font("DejaVu", "", "fonts/DejaVuSans.ttf", uni=True)
     pdf.set_font("DejaVu", size=8)
-    
     cols = df.columns
     col_widths = {'Nome': 45, 'CPF': 25, 'Data de Nascimento': 22, 'Celular': 25, 'Estado Civil': 22, 'Profissão': 25}
     line_height = pdf.font_size * 2.5
-    
     pdf.set_font_size(10)
     for col in cols:
         width = col_widths.get(col, 18)
         pdf.cell(width, line_height, col, border=1, ln=0, align='C')
     pdf.ln(line_height)
-    
     pdf.set_font_size(7)
     for index, row in df.iterrows():
         for col in cols:
@@ -63,7 +60,6 @@ def criar_pdf_aniversariantes(df, mes_nome):
     pdf.add_page()
     pdf.add_font("DejaVu", "", "fonts/DejaVuSans.ttf", uni=True)
     pdf.set_font("DejaVu", size=16)
-
     pdf.cell(0, 10, f'Aniversariantes de {mes_nome}', 0, 1, 'C')
     pdf.ln(10)
     pdf.set_font('DejaVu', size=12)
@@ -80,111 +76,72 @@ def criar_pdf_ficha(membro):
     pdf.add_page()
     pdf.add_font("DejaVu", "", "fonts/DejaVuSans.ttf", uni=True)
     pdf.set_font("DejaVu", size=16)
-    
     pdf.cell(0, 10, 'Ficha Individual de Membro - PIB Gaibu', 0, 1, 'C')
     pdf.set_font("DejaVu", size=14)
     pdf.cell(0, 10, membro.get("Nome", ""), 0, 1, 'C')
     pdf.ln(5)
-
     def draw_field(label, value):
         if value and str(value).strip():
             pdf.set_font('DejaVu', size=10)
             pdf.cell(50, 7, f"{label}:", 0, 0, 'L')
             pdf.set_font('DejaVu', size=10)
             pdf.multi_cell(0, 7, str(value), 0, 'L')
-            pdf.ln(2) 
-
+            pdf.ln(2)
     def draw_section_header(title):
         pdf.set_font('DejaVu', size=12)
         pdf.cell(0, 10, title, 0, 1, 'L')
         pdf.line(10, pdf.get_y(), 200, pdf.get_y())
         pdf.ln(2)
-
     draw_section_header("👤 Dados Pessoais")
-    draw_field("CPF", membro.get("CPF"))
-    draw_field("Data de Nascimento", membro.get("Data de Nascimento"))
-    draw_field("Sexo", membro.get("Sexo"))
-    draw_field("Estado Civil", membro.get("Estado Civil"))
-    draw_field("Profissão", membro.get("Profissão"))
-    draw_field("Celular", membro.get("Celular"))
+    draw_field("CPF", membro.get("CPF")); draw_field("Data de Nascimento", membro.get("Data de Nascimento")); draw_field("Sexo", membro.get("Sexo")); draw_field("Estado Civil", membro.get("Estado Civil")); draw_field("Profissão", membro.get("Profissão")); draw_field("Celular", membro.get("Celular"))
     pdf.ln(5)
-
     draw_section_header("🏠 Endereço")
-    draw_field("CEP", membro.get("CEP"))
-    draw_field("Endereço", membro.get("Endereco"))
-    draw_field("Bairro", membro.get("Bairro"))
-    draw_field("Cidade", membro.get("Cidade"))
-    draw_field("UF", membro.get("UF (Endereco)"))
+    draw_field("CEP", membro.get("CEP")); draw_field("Endereço", membro.get("Endereco")); draw_field("Bairro", membro.get("Bairro")); draw_field("Cidade", membro.get("Cidade")); draw_field("UF", membro.get("UF (Endereco)"))
     pdf.ln(5)
-    
     draw_section_header("👨‍👩‍👧 Filiação e Origem")
-    draw_field("Nome do Pai", membro.get("Nome do Pai"))
-    draw_field("Nome da Mãe", membro.get("Nome da Mae"))
-    draw_field("Cônjuge", membro.get("Nome do(a) Cônjuge"))
-    draw_field("Nacionalidade", membro.get("Nacionalidade"))
-    draw_field("Naturalidade", membro.get("Naturalidade"))
+    draw_field("Nome do Pai", membro.get("Nome do Pai")); draw_field("Nome da Mãe", membro.get("Nome da Mae")); draw_field("Cônjuge", membro.get("Nome do(a) Cônjuge")); draw_field("Nacionalidade", membro.get("Nacionalidade")); draw_field("Naturalidade", membro.get("Naturalidade"))
     pdf.ln(5)
-
     draw_section_header("⛪ Dados Eclesiásticos")
-    draw_field("Status", membro.get("Status"))
-    draw_field("Forma de Admissão", membro.get("Forma de Admissao"))
-    draw_field("Data de Admissão", membro.get("Data de Admissao"))
-    draw_field("Data de Conversão", membro.get("Data de Conversao"))
-    
+    draw_field("Status", membro.get("Status")); draw_field("Forma de Admissão", membro.get("Forma de Admissao")); draw_field("Data de Admissão", membro.get("Data de Admissao")); draw_field("Data de Conversão", membro.get("Data de Conversao"))
     return bytes(pdf.output())
 
 # --- Funções de Dados (Google Sheets) ---
 NOME_PLANILHA = "Fichario_Membros_PIB_Gaibu"
 NOME_ABA = "Membros"
-
 try:
     creds_json_str = st.secrets["google_sheets"]["creds_json_str"]
     creds_dict = json.loads(creds_json_str)
 except (KeyError, FileNotFoundError):
     st.error("As credenciais do Google Sheets não foram encontradas.")
     st.stop()
-
 @st.cache_resource(ttl=3600)
 def get_client(creds):
     return gspread.service_account_from_dict(creds)
-
 gc = get_client(creds_dict)
-
-HEADERS = [
-    "Nome", "CPF", "Sexo", "Estado Civil", "Profissão", "Forma de Admissao",
-    "Data de Nascimento", "Nacionalidade", "Naturalidade", "UF (Naturalidade)",
-    "Nome do Pai", "Nome da Mae", "Nome do(a) Cônjuge",
-    "CEP", "Endereco", "Bairro", "Cidade", "UF (Endereco)",
-    "Grau de Instrução", "Celular", "Data de Conversao", "Data de Admissao",
-    "Status", "Observações"
-]
+HEADERS = ["Nome", "CPF", "Sexo", "Estado Civil", "Profissão", "Forma de Admissao", "Data de Nascimento", "Nacionalidade", "Naturalidade", "UF (Naturalidade)", "Nome do Pai", "Nome da Mae", "Nome do(a) Cônjuge", "CEP", "Endereco", "Bairro", "Cidade", "UF (Endereco)", "Grau de Instrução", "Celular", "Data de Conversao", "Data de Admissao", "Status", "Observações"]
 
 def carregar_membros():
     try:
         ws = gc.open(NOME_PLANILHA).worksheet(NOME_ABA)
     except gspread.SpreadsheetNotFound:
         sh = gc.create(NOME_PLANILHA)
-        ws = sh.add_worksheet(title=NOME_ABA, rows="100", cols=len(HEADERS))
-        ws.insert_row(HEADERS, 1)
+        ws = sh.add_worksheet(title=NOME_ABA, rows="100", cols=len(HEADERS)); ws.insert_row(HEADERS, 1)
         return []
     except gspread.WorksheetNotFound:
         sh = gc.open(NOME_PLANILHA)
-        ws = sh.add_worksheet(title=NOME_ABA, rows="100", cols=len(HEADERS))
-        ws.insert_row(HEADERS, 1)
+        ws = sh.add_worksheet(title=NOME_ABA, rows="100", cols=len(HEADERS)); ws.insert_row(HEADERS, 1)
         return []
     records = ws.get_all_records()
     for record in records:
         record['CPF'] = str(record.get('CPF', ''))
         for header in HEADERS:
-            if header not in record:
-                record[header] = ""
+            if header not in record: record[header] = ""
     return records
 
 def salvar_membros(lista):
     try:
         ws = gc.open(NOME_PLANILHA).worksheet(NOME_ABA)
-        ws.clear()
-        ws.insert_row(HEADERS, 1)
+        ws.clear(); ws.insert_row(HEADERS, 1)
         if lista:
             rows = [[str(m.get(h, '')) for h in HEADERS] for m in lista]
             ws.append_rows(rows, value_input_option="USER_ENTERED")
@@ -193,8 +150,7 @@ def salvar_membros(lista):
 
 def formatar_datas(df, colunas):
     for col in colunas:
-        if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors="coerce", dayfirst=True).dt.strftime("%d/%m/%Y")
+        if col in df.columns: df[col] = pd.to_datetime(df[col], errors="coerce", dayfirst=True).dt.strftime("%d/%m/%Y")
     return df
 
 def buscar_cep(cep):
@@ -206,8 +162,7 @@ def buscar_cep(cep):
             data = resp.json()
             if "erro" not in data:
                 return {"endereco": f"{data.get('logradouro', '')} {data.get('complemento', '')}".strip(), "bairro": data.get("bairro", ""), "cidade": data.get("localidade", ""), "uf_end": data.get("uf", "")}
-    except Exception:
-        pass
+    except Exception: pass
     return None
 
 MAP_KEYS = {"Nome": "nome", "CPF": "cpf", "Sexo": "sexo", "Estado Civil": "estado_civil", "Profissão": "profissao", "Forma de Admissao": "forma_admissao", "Data de Nascimento": "data_nasc", "Nacionalidade": "nacionalidade", "Naturalidade": "naturalidade", "UF (Naturalidade)": "uf_nat", "Nome do Pai": "nome_pai", "Nome da Mae": "nome_mae", "Nome do(a) Cônjuge": "conjuge", "CEP": "cep", "Endereco": "endereco", "Bairro": "bairro", "Cidade": "cidade", "UF (Endereco)": "uf_end", "Grau de Instrução": "grau_ins", "Celular": "celular", "Data de Conversao": "data_conv", "Data de Admissao": "data_adm", "Status": "status", "Observações": "observacoes"}
@@ -218,7 +173,34 @@ def limpar_formulario():
     st.session_state.sexo = "M"
 
 def submeter_formulario():
-    novo = {"Nome": str(st.session_state.get("nome", "")).strip().upper(), "CPF": str(st.session_state.get("cpf", "")).strip().upper(), "Sexo": st.session_state.get("sexo", ""), "Estado Civil": st.session_state.get("estado_civil", ""), "Profissão": str(st.session_state.get("profissao", "")).strip().upper(), "Forma de Admissao": st.session_state.get("forma_admissao", ""), "Data de Nascimento": st.session_state.data_nasc.strftime('%d/%m/%Y') if st.session_state.data_nasc else "", "Nacionalidade": st.session_state.get("nacionalidade", ""), "Naturalidade": str(st.session_state.get("naturalidade", "")).strip().upper(), "UF (Naturalidade)": st.session_state.get("uf_nat", ""), "Nome do Pai": str(st.session_state.get("nome_pai", "")).strip().upper(), "Nome da Mae": str(st.session_state.get("nome_mae", "")).strip().upper(), "Nome do(a) Cônjuge": str(st.session_state.get("conjuge", "")).strip().upper(), "CEP": str(st.session_state.get("cep", "")).strip().upper(), "Endereco": str(st.session_state.get("endereco", "")).strip().upper(), "Bairro": str(st.session_state.get("bairro", "")).strip().upper(), "Cidade": str(st.session_state.get("cidade", "")).strip().upper(), "UF (Endereco)": st.session_state.get("uf_end", ""), "Grau de Instrução": st.session_state.get("grau_ins", ""), "Celular": str(st.session_state.get("celular", "")).strip().upper(), "Data de Conversao": st.session_state.data_conv.strftime('%d/%m/%Y') if st.session_state.data_conv else "", "Data de Admissao": st.session_state.data_adm.strftime('%d/%m/%Y') if st.session_state.data_adm else "", "Status": st.session_state.get("status", ""), "Observações": st.session_state.get("observacoes", "").strip()}
+    # Mapeamento explícito para garantir a ordem e corrigir o bug
+    novo = {
+        "Nome": str(st.session_state.get("nome", "")).strip().upper(),
+        "CPF": str(st.session_state.get("cpf", "")).strip().upper(),
+        "Sexo": st.session_state.get("sexo", ""),
+        "Estado Civil": st.session_state.get("estado_civil", ""),
+        "Profissão": str(st.session_state.get("profissao", "")).strip().upper(),
+        "Forma de Admissao": st.session_state.get("forma_admissao", ""),
+        "Data de Nascimento": st.session_state.data_nasc.strftime('%d/%m/%Y') if st.session_state.data_nasc else "",
+        "Nacionalidade": st.session_state.get("nacionalidade", ""),
+        "Naturalidade": str(st.session_state.get("naturalidade", "")).strip().upper(),
+        "UF (Naturalidade)": st.session_state.get("uf_nat", ""),
+        "Nome do Pai": str(st.session_state.get("nome_pai", "")).strip().upper(),
+        "Nome da Mae": str(st.session_state.get("nome_mae", "")).strip().upper(),
+        "Nome do(a) Cônjuge": str(st.session_state.get("conjuge", "")).strip().upper(),
+        "CEP": str(st.session_state.get("cep", "")).strip().upper(),
+        "Endereco": str(st.session_state.get("endereco", "")).strip().upper(),
+        "Bairro": str(st.session_state.get("bairro", "")).strip().upper(),
+        "Cidade": str(st.session_state.get("cidade", "")).strip().upper(),
+        "UF (Endereco)": st.session_state.get("uf_end", ""),
+        "Grau de Instrução": st.session_state.get("grau_ins", ""),
+        "Celular": str(st.session_state.get("celular", "")).strip().upper(),
+        "Data de Conversao": st.session_state.data_conv.strftime('%d/%m/%Y') if st.session_state.data_conv else "",
+        "Data de Admissao": st.session_state.data_adm.strftime('%d/%m/%Y') if st.session_state.data_adm else "",
+        "Status": st.session_state.get("status", ""),
+        "Observações": st.session_state.get("observacoes", "").strip()
+    }
+    
     cpf_digitado = novo.get("CPF")
     is_duplicado = False
     if cpf_digitado: is_duplicado = any(str(m.get("CPF")) == cpf_digitado for m in st.session_state.membros)
@@ -312,8 +294,8 @@ def display_member_details(membro_dict, context_prefix):
 
 # --- C) Lógica Principal de Exibição ---
 init_state()
-
 if not st.session_state.get("authenticated", False):
+    # Lógica de Login
     _, col_login, _ = st.columns([0.5, 2, 0.5])
     with col_login:
         st.markdown("<h1 style='text-align: center;'>Fichário de Membros</h1>", unsafe_allow_html=True)
@@ -336,6 +318,7 @@ if not st.session_state.get("authenticated", False):
                 else: st.error("Resposta de autenticação inválida recebida do Google.")
             except Exception as e: st.error(f"Ocorreu um erro ao processar o login: {e}")
 else:
+    # Lógica Principal do App
     _, col_content = st.columns([1, 1])
     with col_content:
         col_bem_vindo, col_logout = st.columns([3, 1])
@@ -347,7 +330,7 @@ else:
                 st.rerun()
     st.markdown("---")
     
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Cadastro de Membros", "Lista de Membros", "Buscar e Excluir", "Aniversariantes do Mês", "Ficha Individual"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Cadastro", "Lista de Membros", "Busca e Ações", "Aniversariantes", "Ficha Individual"])
 
     with tab1:
         st.header("Cadastro de Novos Membros")
@@ -580,6 +563,12 @@ else:
                     if st.button("📄 Exportar Ficha como PDF", key="export_ficha_pdf"):
                         with st.spinner("Gerando PDF da ficha..."):
                             pdf_data = criar_pdf_ficha(membro_dict)
-                            st.download_button("Clique para Baixar o PDF", pdf_data, f"ficha_{membro_dict['Nome'].replace(' ', '_').lower()}.pdf", "application/pdf", key='download_ficha_pdf')
+                            st.download_button(
+                                label="Clique para Baixar o PDF",
+                                data=pdf_data,
+                                file_name=f"ficha_{membro_dict['Nome'].replace(' ', '_').lower()}.pdf",
+                                mime="application/pdf",
+                                key=f"download_pdf_{membro_dict['Nome']}"
+                            )
         else:
             st.warning("Não há membros cadastrados para gerar fichas.")
