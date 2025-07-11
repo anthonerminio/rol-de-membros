@@ -1,4 +1,4 @@
-# Versão Final Consolidada - v4.5
+# Versão Final Completa e Corrigida - v4.5.1
 import streamlit as st
 import pandas as pd
 import gspread
@@ -20,7 +20,7 @@ try:
     GOOGLE_CLIENT_ID = st.secrets["google_oauth"]["client_id"]
     GOOGLE_CLIENT_SECRET = st.secrets["google_oauth"]["client_secret"]
     GOOGLE_REDIRECT_URI = "https://pibgaibu.streamlit.app"
-    EMAILS_PERMITIDOS = {"antonio.esn01@gmail.com", "neto1999.legal@gmail.com", "adrielsoliveira1907@gmail.com"}
+    EMAILS_PERMITIDOS = {"antonio.esn01@gmail.com","adrielly.rfn@gmail.com", "neto1999.legal@gmail.com", "adrielsoliveira1907@gmail.com"}
 
     oauth2 = OAuth2Component(
         client_id=GOOGLE_CLIENT_ID,
@@ -290,7 +290,7 @@ def display_member_details(membro_dict):
         if value and str(value).strip():
             st.markdown(f"**{label}:** {value}")
 
-    st.markdown("##### 👤 Dados Pessoais")
+    st.markdown("##### 👤 Dados Pessoais e Contato")
     col1, col2 = st.columns(2)
     with col1:
         display_field("CPF", membro_dict.get("CPF"))
@@ -452,12 +452,14 @@ else:
             ativos = len(df_membros_tab2[df_membros_tab2['Status'].str.upper() == 'ATIVO'])
             inativos = len(df_membros_tab2[df_membros_tab2['Status'].str.upper() == 'INATIVO'])
             sem_status = total_membros - ativos - inativos
+            
             col1_metric, col2_metric, col3_metric, col4_metric = st.columns(4)
             col1_metric.metric("Total de Membros", f"{total_membros} 👥")
             col2_metric.metric("Membros Ativos", f"{ativos} 🟢")
             col3_metric.metric("Membros Inativos", f"{inativos} 🔴")
             col4_metric.metric("Status Não Definido", f"{sem_status} ⚪")
             st.divider()
+
             if st.session_state.get('confirmando_status', False):
                 novo_status = st.session_state.get('novo_status', 'DESCONHECIDO')
                 cor = "green" if novo_status == "ATIVO" else "red"
@@ -515,18 +517,21 @@ else:
         with col_busca2:
             data_filtro = st.date_input("Buscar por Data de Nascimento", value=None, key="busca_data", min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY")
         st.info("Filtre para refinar a lista, ou selecione diretamente na lista completa abaixo para Excluir ou Exportar.")
+        
         df_original = pd.DataFrame(st.session_state.membros)
         if df_original.empty:
             st.warning("Não há membros cadastrados para exibir.")
         else:
             df_filtrado = df_original.copy()
             if 'CPF' in df_filtrado.columns: df_filtrado['CPF'] = df_filtrado['CPF'].astype(str)
+            
             if termo:
                 mask_termo = df_filtrado.apply(lambda row: termo in str(row.get('Nome', '')).upper() or termo in str(row.get('CPF', '')), axis=1)
                 df_filtrado = df_filtrado[mask_termo]
             if data_filtro:
                 data_filtro_str = data_filtro.strftime('%d/%m/%Y')
                 df_filtrado = df_filtrado[df_filtrado['Data de Nascimento'] == data_filtro_str]
+
             if df_filtrado.empty:
                 st.warning("Nenhum membro encontrado com os critérios de busca especificados.")
             else:
@@ -534,12 +539,12 @@ else:
                 chaves_selecionadas_excluir = set()
                 for index, membro in df_filtrado.iterrows():
                     with st.container(border=True):
-                        col_selecao, col_info = st.columns([1, 15])
-                        with col_selecao:
+                        col_selecao_b, col_info_b = st.columns([1, 15])
+                        with col_selecao_b:
                             selecionado = st.checkbox("", key=f"select_search_{index}", label_visibility="collapsed")
                             if selecionado:
                                 chaves_selecionadas_excluir.add((membro.get('Nome'), membro.get('Data de Nascimento')))
-                        with col_info:
+                        with col_info_b:
                             status_icon = '🟢' if str(membro.get('Status')).upper() == 'ATIVO' else '🔴' if str(membro.get('Status')).upper() == 'INATIVO' else '⚪'
                             st.subheader(f"{status_icon} {membro.get('Nome')}")
                             st.caption(f"CPF: {membro.get('CPF')} | Data de Admissão: {membro.get('Data de Admissao')}")
@@ -568,18 +573,15 @@ else:
                             st.session_state.confirmando_exclusao = True
                             st.rerun()
                     with col2_del:
-                        # Criar DataFrame apenas com os selecionados para exportação
                         df_para_exportar = df_original[df_original.apply(lambda row: (row['Nome'], row['Data de Nascimento']) in chaves_selecionadas_excluir, axis=1)]
-                        df_excel = df_para_exportar.drop(columns=['Selecionar'], errors='ignore')
                         output_excel = BytesIO()
                         with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
-                            df_excel.to_excel(writer, index=False, sheet_name='Membros')
+                            df_para_exportar.to_excel(writer, index=False, sheet_name='Membros')
                         excel_data = output_excel.getvalue()
                         st.download_button(label="📄 Exportar Excel (.xlsx)", data=excel_data, file_name="membros_selecionados.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True, disabled=sem_selecao)
                     with col3_del:
                         df_para_exportar = df_original[df_original.apply(lambda row: (row['Nome'], row['Data de Nascimento']) in chaves_selecionadas_excluir, axis=1)]
-                        df_pdf = df_para_exportar.drop(columns=['Selecionar'], errors='ignore')
-                        pdf_data = criar_pdf_lista(df_pdf)
+                        pdf_data = criar_pdf_lista(df_para_exportar)
                         st.download_button(label="📕 Exportar PDF (.pdf)", data=pdf_data, file_name="membros_selecionados.pdf", mime="application/pdf", use_container_width=True, disabled=sem_selecao)
 
     with tab4:
@@ -612,12 +614,7 @@ else:
         st.header("Gerar Ficha Individual de Membro")
         if "membros" in st.session_state and st.session_state.membros:
             lista_nomes = [""] + sorted([m.get("Nome", "") for m in st.session_state.membros if m.get("Nome")])
-            membro_selecionado_nome = st.selectbox(
-                "Selecione ou digite o nome do membro para gerar a ficha:", 
-                options=lista_nomes,
-                placeholder="Selecione um membro...",
-                index=0
-            )
+            membro_selecionado_nome = st.selectbox("Selecione ou digite o nome do membro para gerar a ficha:", options=lista_nomes, placeholder="Selecione um membro...", index=0)
             if membro_selecionado_nome:
                 membro_dict = next((m for m in st.session_state.membros if m.get("Nome") == membro_selecionado_nome), None)
                 if membro_dict:
@@ -628,6 +625,7 @@ else:
                     if st.button("📄 Exportar Ficha como PDF", key="export_ficha_pdf"):
                         with st.spinner("Gerando PDF da ficha..."):
                             pdf_data = criar_pdf_ficha(membro_dict)
+                            # Usa um truque com st.link_button para um download mais estável em alguns casos
                             st.download_button(
                                 label="Clique para Baixar o PDF",
                                 data=pdf_data,
