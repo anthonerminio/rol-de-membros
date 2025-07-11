@@ -143,7 +143,7 @@ def buscar_cep(cep):
         if resp.status_code == 200:
             data = resp.json()
             if "erro" not in data:
-                return {"endereco": f"{data.get('logradouro', '')} {data.get('complemento', '')}".strip(), "bairro": data.get("bairro", ""), "cidade": data.get("localidade", ""), "uf": data.get("uf", "")}
+                return {"endereco": f"{data.get('logradouro', '')}", "bairro": data.get("bairro", ""), "cidade": data.get("localidade", ""), "uf": data.get("uf", "")}
     except Exception:
         pass
     return None
@@ -222,7 +222,6 @@ else:
 
     with tab1:
         st.header("Cadastro de Novos Membros")
-        # CORREÇÃO 1: Alterado para clear_on_submit=False
         with st.form("form_membro", clear_on_submit=False):
             st.subheader("Informações Pessoais")
             c1, c2 = st.columns(2)
@@ -250,16 +249,18 @@ else:
             c5, c6 = st.columns([1, 3])
             with c5:
                 cep_input = st.text_input("CEP", key="cep")
-                # Botão de buscar CEP agora é um botão normal, não de submit
-                if st.button("🔎 Buscar CEP"):
-                    dados_cep = buscar_cep(cep_input)
-                    if dados_cep:
-                        # Atualiza o estado da sessão diretamente
-                        for k, v in dados_cep.items():
-                            st.session_state[k] = v
-                        st.success("Endereço preenchido!")
-                    elif cep_input: 
-                        st.warning("CEP não encontrado ou inválido.")
+            # CORREÇÃO 1: Botão de buscar CEP agora é um st.form_submit_button
+            with c6:
+                buscar_cep_btn = st.form_submit_button("🔎 Buscar CEP")
+            
+            if buscar_cep_btn:
+                dados_cep = buscar_cep(st.session_state.cep)
+                if dados_cep:
+                    st.session_state.update(dados_cep)
+                    st.success("Endereço preenchido!")
+                elif st.session_state.cep: 
+                    st.warning("CEP não encontrado ou inválido.")
+
             c7, c8, c9, c10 = st.columns(4)
             with c7:
                 st.text_input("Endereco", key="endereco")
@@ -291,22 +292,24 @@ else:
                 elif isinstance(valor, str): novo[header] = valor.strip().upper()
                 else: novo[header] = valor
             
-            # CORREÇÃO 2: Validação de CPF antes de salvar
-            if not novo.get("CPF"):
-                st.error("O campo CPF é de preenchimento obrigatório.")
-            elif any(m.get("CPF") == novo["CPF"] for m in st.session_state.membros):
+            cpf_digitado = novo.get("CPF")
+            # CORREÇÃO 2: Lógica de validação do CPF ajustada
+            is_duplicado = False
+            if cpf_digitado: # Apenas checa duplicidade se um CPF foi fornecido
+                is_duplicado = any(m.get("CPF") == cpf_digitado for m in st.session_state.membros)
+
+            if is_duplicado:
                 st.error("Já existe um membro cadastrado com este CPF.")
             else:
                 st.session_state.membros.append(novo)
                 salvar_membros(st.session_state.membros)
                 st.success("Membro salvo com sucesso!")
-                limpar_formulario() # Limpa o formulário apenas em caso de sucesso
+                limpar_formulario()
                 st.rerun()
 
     with tab2:
         st.header("Lista de Membros")
         if "membros" in st.session_state and st.session_state.membros:
-            # Garante a ordem das colunas
             df2 = pd.DataFrame(st.session_state.membros).reindex(columns=HEADERS)
             if 'Status' in df2.columns:
                 df2['Situação'] = df2['Status'].apply(lambda s: '🟢' if str(s).upper() == 'ATIVO' else '🔴' if str(s).upper() == 'INATIVO' else '⚪')
@@ -327,9 +330,7 @@ else:
             termo = st.text_input("Buscar por Nome ou CPF", key="busca_termo").strip().upper()
         with col_busca2:
             data_filtro = st.date_input("Buscar por Data de Nascimento", value=None, key="busca_data", min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY")
-        
         st.info("Filtre para refinar a lista, ou selecione diretamente na lista completa abaixo para Excluir ou Exportar.")
-        
         df_original = pd.DataFrame(st.session_state.membros)
         if df_original.empty:
             st.warning("Não há membros cadastrados para exibir.")
@@ -341,7 +342,6 @@ else:
             if data_filtro:
                 data_filtro_str = data_filtro.strftime('%d/%m/%Y')
                 df_filtrado = df_filtrado[df_filtrado['Data de Nascimento'] == data_filtro_str]
-
             if df_filtrado.empty:
                 st.warning("Nenhum membro encontrado com os critérios de busca especificados.")
             else:
