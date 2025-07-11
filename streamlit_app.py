@@ -1,4 +1,4 @@
-# Versão Final e Corrigida - v4.6.3
+# Versão Final e Corrigida - v4.7
 import streamlit as st
 import pandas as pd
 import gspread
@@ -13,7 +13,7 @@ from streamlit_oauth import OAuth2Component
 import jwt
 
 # --- 1) Configuração da página ---
-st.set_page_config(layout="wide", page_title="Fichário de Membros v4.6")
+st.set_page_config(layout="wide", page_title="Fichário de Membros v4.7")
 
 # --- A) Parâmetros de Login Google ---
 try:
@@ -250,7 +250,7 @@ def display_member_details(membro_dict, context_prefix):
     if obs and obs.strip():
         st.text_area("", value=obs, height=100, disabled=True, label_visibility="collapsed", key=f"obs_{context_prefix}")
 
-# --- C) Lógica Principal ---
+# --- C) Lógica Principal de Exibição ---
 init_state()
 if not st.session_state.get("authenticated", False):
     _, col_login, _ = st.columns([0.5, 2, 0.5])
@@ -272,18 +272,17 @@ if not st.session_state.get("authenticated", False):
                 else: st.error("Resposta de autenticação inválida recebida do Google.")
             except Exception as e: st.error(f"Ocorreu um erro ao processar o login: {e}")
 else:
-    # --- NOVO LAYOUT: COLUNA DE AÇÕES À DIREITA ---
-    main_col, actions_col = st.columns([3.5, 1])
-
-    with actions_col:
+    col_main, col_actions = st.columns([3.5, 1]) # Divide a tela em área principal e painel de ações
+    
+    with col_actions:
         st.markdown(f"**Usuário:**")
         st.info(st.session_state.get('username', ''))
         if st.button("Sair", use_container_width=True):
             for key in list(st.session_state.keys()): del st.session_state[key]
             st.rerun()
         st.divider()
-        st.header("Ações")
-
+        st.header("Ações em Lote")
+        
         # Ações da Aba 2 (Lista de Membros)
         st.subheader("Mudar Status (da Lista)")
         sem_selecao_lista = not st.session_state.get("selecao_lista", set())
@@ -310,7 +309,7 @@ else:
             pdf_data = criar_pdf_lista(df_para_exportar)
         else:
             excel_data, pdf_data = b"", b""
-        
+
         st.download_button("📄 Exportar Excel da Busca", excel_data, "membros_selecionados.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True, disabled=sem_selecao_busca)
         st.download_button("📕 Exportar PDF da Busca", pdf_data, "membros_selecionados.pdf", "application/pdf", use_container_width=True, disabled=sem_selecao_busca)
         
@@ -319,8 +318,8 @@ else:
             st.session_state.membros = carregar_membros()
             st.toast("Dados recarregados com sucesso!")
             st.rerun()
-    
-    with main_col:
+
+    with col_main:
         tab1, tab2, tab3, tab4, tab5 = st.tabs(["Cadastro", "Lista de Membros", "Busca e Ações", "Aniversariantes", "Ficha Individual"])
 
         with tab1:
@@ -404,7 +403,6 @@ else:
                     df_filtrado = df_filtrado[mask_termo]
                 if data_filtro:
                     data_filtro_str = data_filtro.strftime('%d/%m/%Y'); df_filtrado = df_filtrado[df_filtrado['Data de Nascimento'] == data_filtro_str]
-                
                 if df_filtrado.empty:
                     st.warning("Nenhum membro encontrado com os critérios de busca especificados.")
                 else:
@@ -419,16 +417,16 @@ else:
                                 status_icon = '🟢' if str(membro.get('Status')).upper() == 'ATIVO' else '🔴' if str(membro.get('Status')).upper() == 'INATIVO' else '⚪'
                                 st.subheader(f"{status_icon} {membro.get('Nome')}")
                                 st.caption(f"CPF: {membro.get('CPF')} | Data de Admissão: {membro.get('Data de Admissao')}")
-                
-                if st.session_state.get('confirmando_exclusao', False):
-                    with st.expander("⚠️ CONFIRMAÇÃO DE EXCLUSÃO ⚠️", expanded=True):
-                        st.warning(f"Deseja realmente deletar os {len(st.session_state.chaves_para_excluir)} itens selecionados?")
-                        c1, c2 = st.columns(2)
-                        if c1.button("Sim, excluir definitivamente", use_container_width=True, type="primary"):
-                            membros_atualizados = [m for m in st.session_state.membros if (m.get('Nome'), m.get('Data de Nascimento')) not in st.session_state.chaves_para_excluir]
-                            st.session_state.membros = membros_atualizados; salvar_membros(membros_atualizados); st.session_state.confirmando_exclusao, st.session_state.chaves_para_excluir = False, set(); st.success("Registros excluídos!"); st.rerun()
-                        if c2.button("Não, voltar", use_container_width=True):
-                            st.session_state.confirmando_exclusao, st.session_state.chaves_para_excluir = False, set(); st.rerun()
+                    
+                    if st.session_state.get('confirmando_exclusao', False):
+                        with st.expander("⚠️ CONFIRMAÇÃO DE EXCLUSÃO ⚠️", expanded=True):
+                            st.warning(f"Deseja realmente deletar os {len(st.session_state.chaves_para_excluir)} itens selecionados?")
+                            c1, c2 = st.columns(2)
+                            if c1.button("Sim, excluir definitivamente", use_container_width=True, type="primary"):
+                                membros_atualizados = [m for m in st.session_state.membros if (m.get('Nome'), m.get('Data de Nascimento')) not in st.session_state.chaves_para_excluir]
+                                st.session_state.membros = membros_atualizados; salvar_membros(membros_atualizados); st.session_state.confirmando_exclusao, st.session_state.chaves_para_excluir = False, set(); st.success("Registros excluídos!"); st.rerun()
+                            if c2.button("Não, voltar", use_container_width=True):
+                                st.session_state.confirmando_exclusao, st.session_state.chaves_para_excluir = False, set(); st.rerun()
 
         with tab4:
             st.header("Aniversariantes do Mês")
