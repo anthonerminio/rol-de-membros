@@ -16,7 +16,7 @@ st.set_page_config(layout="wide", page_title="Fichário de Membros PIB Gaibu")
 # --- A) Parâmetros de Login Google (lendo dos Segredos) ---
 GOOGLE_CLIENT_ID = st.secrets["google_oauth"]["client_id"]
 GOOGLE_CLIENT_SECRET = st.secrets["google_oauth"]["client_secret"]
-GOOGLE_REDIRECT_URI = "https://pibgaibu.streamlit.app"  # SUA URL PÚBLICA
+GOOGLE_REDIRECT_URI = "https://pibgaibu.streamlit.app/"  # SUA URL PÚBLICA
 EMAILS_PERMITIDOS = {"antonio.esn01@gmail.com", "neto1999.legal@gmail.com", "adrielsoliveira1907@gmail.com"}
 
 oauth2 = OAuth2Component(
