@@ -1,4 +1,4 @@
-# Versão Final e Corrigida - v4.6.3
+# Versão Final e Corrigida - v4.6.3 + Sidebar Condicional
 import streamlit as st
 import pandas as pd
 import gspread
@@ -31,7 +31,6 @@ try:
 except (KeyError, FileNotFoundError):
     st.error("As credenciais de login (Google OAuth) não foram encontradas nos Segredos do Streamlit.")
     st.stop()
-
 
 # --- Funções Auxiliares de Exportação ---
 def criar_pdf_lista(df):
@@ -272,204 +271,210 @@ if not st.session_state.get("authenticated", False):
                 else: st.error("Resposta de autenticação inválida recebida do Google.")
             except Exception as e: st.error(f"Ocorreu um erro ao processar o login: {e}")
 else:
-    # --- NOVO LAYOUT: COLUNA DE AÇÕES À DIREITA ---
-    main_col, actions_col = st.columns([3.5, 1])
+    # --- Tabs + Sidebar Condicional ---
+    tab_names = ["Cadastro", "Lista de Membros", "Busca e Ações", "Aniversariantes", "Ficha Individual"]
+    # Usar session_state para guardar aba ativa
+    if "selected_tab" not in st.session_state:
+        st.session_state.selected_tab = tab_names[0]
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(tab_names)
+    # Função para atualizar aba ativa
+    def set_tab(tab_index):
+        st.session_state.selected_tab = tab_names[tab_index]
 
-    with actions_col:
-        st.markdown(f"**Usuário:**")
-        st.info(st.session_state.get('username', ''))
-        if st.button("Sair", use_container_width=True):
+    # --- SIDEBAR CONDICIONAL ---
+    if st.session_state.selected_tab in ["Lista de Membros", "Busca e Ações"]:
+        st.sidebar.markdown(f"**Usuário:**")
+        st.sidebar.info(st.session_state.get('username', ''))
+        if st.sidebar.button("Sair", use_container_width=True):
             for key in list(st.session_state.keys()): del st.session_state[key]
             st.rerun()
-        st.divider()
-        st.header("Ações")
+        st.sidebar.divider()
+        st.sidebar.header("Ações")
 
-        # Ações da Aba 2 (Lista de Membros)
-        st.subheader("Mudar Status (da Lista)")
-        sem_selecao_lista = not st.session_state.get("selecao_lista", set())
-        if st.button("🟢 Marcar como Ativos", use_container_width=True, disabled=sem_selecao_lista, key="sidebar_ativo"):
-            st.session_state.chaves_para_status = st.session_state.selecao_lista
-            st.session_state.novo_status = "ATIVO"; st.session_state.confirmando_status = True; st.rerun()
-        if st.button("🔴 Marcar como Inativos", use_container_width=True, disabled=sem_selecao_lista, key="sidebar_inativo"):
-            st.session_state.chaves_para_status = st.session_state.selecao_lista
-            st.session_state.novo_status = "INATIVO"; st.session_state.confirmando_status = True; st.rerun()
-        
-        st.divider()
-        st.subheader("Ações da Busca")
-        sem_selecao_busca = not st.session_state.get("selecao_busca", set())
-        if st.button("🗑️ Excluir da Busca", use_container_width=True, disabled=sem_selecao_busca, key="sidebar_excluir"):
-            st.session_state.chaves_para_excluir = st.session_state.selecao_busca
-            st.session_state.confirmando_exclusao = True; st.rerun()
-        
-        df_original_sidebar = pd.DataFrame(st.session_state.get("membros", []))
-        if not df_original_sidebar.empty and st.session_state.get("selecao_busca"):
-            df_para_exportar = df_original_sidebar[df_original_sidebar.apply(lambda row: (row['Nome'], row['Data de Nascimento']) in st.session_state.selecao_busca, axis=1)].reindex(columns=HEADERS)
-            output_excel = BytesIO();
-            with pd.ExcelWriter(output_excel, engine='openpyxl') as writer: df_para_exportar.to_excel(writer, index=False, sheet_name='Membros')
-            excel_data = output_excel.getvalue()
-            pdf_data = criar_pdf_lista(df_para_exportar)
-        else:
-            excel_data, pdf_data = b"", b""
-        
-        st.download_button("📄 Exportar Excel da Busca", excel_data, "membros_selecionados.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True, disabled=sem_selecao_busca)
-        st.download_button("📕 Exportar PDF da Busca", pdf_data, "membros_selecionados.pdf", "application/pdf", use_container_width=True, disabled=sem_selecao_busca)
-        
-        st.divider()
-        if st.button("🔄 Recarregar Dados", use_container_width=True):
+        if st.session_state.selected_tab == "Lista de Membros":
+            st.sidebar.subheader("Mudar Status (da Lista)")
+            sem_selecao_lista = not st.session_state.get("selecao_lista", set())
+            if st.sidebar.button("🟢 Marcar como Ativos", use_container_width=True, disabled=sem_selecao_lista, key="sidebar_ativo"):
+                st.session_state.chaves_para_status = st.session_state.selecao_lista
+                st.session_state.novo_status = "ATIVO"; st.session_state.confirmando_status = True; st.rerun()
+            if st.sidebar.button("🔴 Marcar como Inativos", use_container_width=True, disabled=sem_selecao_lista, key="sidebar_inativo"):
+                st.session_state.chaves_para_status = st.session_state.selecao_lista
+                st.session_state.novo_status = "INATIVO"; st.session_state.confirmando_status = True; st.rerun()
+            st.sidebar.divider()
+
+        if st.session_state.selected_tab == "Busca e Ações":
+            st.sidebar.subheader("Ações da Busca")
+            sem_selecao_busca = not st.session_state.get("selecao_busca", set())
+            if st.sidebar.button("🗑️ Excluir da Busca", use_container_width=True, disabled=sem_selecao_busca, key="sidebar_excluir"):
+                st.session_state.chaves_para_excluir = st.session_state.selecao_busca
+                st.session_state.confirmando_exclusao = True; st.rerun()
+            df_original_sidebar = pd.DataFrame(st.session_state.get("membros", []))
+            if not df_original_sidebar.empty and st.session_state.get("selecao_busca"):
+                df_para_exportar = df_original_sidebar[df_original_sidebar.apply(lambda row: (row['Nome'], row['Data de Nascimento']) in st.session_state.selecao_busca, axis=1)].reindex(columns=HEADERS)
+                output_excel = BytesIO()
+                with pd.ExcelWriter(output_excel, engine='openpyxl') as writer: df_para_exportar.to_excel(writer, index=False, sheet_name='Membros')
+                excel_data = output_excel.getvalue()
+                pdf_data = criar_pdf_lista(df_para_exportar)
+            else:
+                excel_data, pdf_data = b"", b""
+            st.sidebar.download_button("📄 Exportar Excel da Busca", excel_data, "membros_selecionados.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True, disabled=sem_selecao_busca)
+            st.sidebar.download_button("📕 Exportar PDF da Busca", pdf_data, "membros_selecionados.pdf", "application/pdf", use_container_width=True, disabled=sem_selecao_busca)
+            st.sidebar.divider()
+        if st.sidebar.button("🔄 Recarregar Dados", use_container_width=True):
             st.session_state.membros = carregar_membros()
             st.toast("Dados recarregados com sucesso!")
             st.rerun()
-    
-    with main_col:
-        tab1, tab2, tab3, tab4, tab5 = st.tabs(["Cadastro", "Lista de Membros", "Busca e Ações", "Aniversariantes", "Ficha Individual"])
 
-        with tab1:
-            st.header("Cadastro de Novos Membros")
-            with st.form("form_membro"):
-                st.subheader("Informações Pessoais"); c1, c2 = st.columns(2)
-                with c1:
-                    st.text_input("Nome", key="nome"); st.text_input("CPF", key="cpf"); st.selectbox("Estado Civil", ["", "Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)"], key="estado_civil"); st.selectbox("Forma de Admissao", ["", "Batismo", "Transferência", "Aclamação"], key="forma_admissao")
-                with c2:
-                    st.radio("Sexo", ["M", "F"], key="sexo", horizontal=True); st.date_input("Data de Nascimento", key="data_nasc", min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY"); st.text_input("Profissão", key="profissao"); st.text_input("Celular", key="celular")
-                st.subheader("Filiação e Origem"); c3, c4 = st.columns(2)
-                with c3:
-                    st.text_input("Nome do Pai", key="nome_pai"); st.text_input("Nome da Mãe", key="nome_mae"); st.text_input("Nome do(a) Cônjuge", key="conjuge")
-                with c4:
-                    st.selectbox("Nacionalidade", ["", "Brasileiro(a)", "Estrangeiro(a)"], key="nacionalidade"); st.text_input("Naturalidade", key="naturalidade"); st.selectbox("UF (Naturalidade)", [""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"], key="uf_nat")
-                st.subheader("Endereço"); col_cep, col_btn_cep, col_spacer = st.columns([1,1,2])
-                with col_cep: st.text_input("CEP", key="cep")
-                with col_btn_cep:
-                    if st.form_submit_button("🔎 Buscar CEP"):
-                        dados_cep = buscar_cep(st.session_state.cep)
-                        if dados_cep: st.session_state.update(dados_cep); st.toast("Endereço preenchido!", icon="🏠")
-                        elif st.session_state.cep: st.warning("CEP não encontrado ou inválido.")
-                c7, c8, c9, c10 = st.columns(4)
-                with c7: st.text_input("Endereco", key="endereco")
-                with c8: st.text_input("Bairro", key="bairro")
-                with c9: st.text_input("Cidade", key="cidade")
-                with c10: st.selectbox("UF (Endereco)", [""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"], key="uf_end")
-                st.subheader("Informações Adicionais"); c11, c12, c13 = st.columns(3)
-                with c11:
-                    st.selectbox("Grau de Instrução", ["", "Fundamental Incompleto", "Fundamental Completo", "Médio Incompleto", "Médio Completo", "Superior Incompleto", "Superior Completo", "Pós-graduação", "Mestrado", "Doutorado"], key="grau_ins"); st.selectbox("Status", ["Ativo", "Inativo"], key="status")
-                with c12:
-                    st.date_input("Data de Conversao", key="data_conv", min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY"); st.date_input("Data de Admissao", key="data_adm", min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY")
-                with c13: st.text_area("Observações", key="observacoes")
-                st.markdown("---"); st.form_submit_button("💾 Salvar Membro", on_click=submeter_formulario)
+    # ---- Conteúdo das abas ----
+    with tab1:
+        set_tab(0)
+        st.header("Cadastro de Novos Membros")
+        with st.form("form_membro"):
+            st.subheader("Informações Pessoais"); c1, c2 = st.columns(2)
+            with c1:
+                st.text_input("Nome", key="nome"); st.text_input("CPF", key="cpf"); st.selectbox("Estado Civil", ["", "Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)"], key="estado_civil"); st.selectbox("Forma de Admissao", ["", "Batismo", "Transferência", "Aclamação"], key="forma_admissao")
+            with c2:
+                st.radio("Sexo", ["M", "F"], key="sexo", horizontal=True); st.date_input("Data de Nascimento", key="data_nasc", min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY"); st.text_input("Profissão", key="profissao"); st.text_input("Celular", key="celular")
+            st.subheader("Filiação e Origem"); c3, c4 = st.columns(2)
+            with c3:
+                st.text_input("Nome do Pai", key="nome_pai"); st.text_input("Nome da Mãe", key="nome_mae"); st.text_input("Nome do(a) Cônjuge", key="conjuge")
+            with c4:
+                st.selectbox("Nacionalidade", ["", "Brasileiro(a)", "Estrangeiro(a)"], key="nacionalidade"); st.text_input("Naturalidade", key="naturalidade"); st.selectbox("UF (Naturalidade)", [""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"], key="uf_nat")
+            st.subheader("Endereço"); col_cep, col_btn_cep, col_spacer = st.columns([1,1,2])
+            with col_cep: st.text_input("CEP", key="cep")
+            with col_btn_cep:
+                if st.form_submit_button("🔎 Buscar CEP"):
+                    dados_cep = buscar_cep(st.session_state.cep)
+                    if dados_cep: st.session_state.update(dados_cep); st.toast("Endereço preenchido!", icon="🏠")
+                    elif st.session_state.cep: st.warning("CEP não encontrado ou inválido.")
+            c7, c8, c9, c10 = st.columns(4)
+            with c7: st.text_input("Endereco", key="endereco")
+            with c8: st.text_input("Bairro", key="bairro")
+            with c9: st.text_input("Cidade", key="cidade")
+            with c10: st.selectbox("UF (Endereco)", [""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"], key="uf_end")
+            st.subheader("Informações Adicionais"); c11, c12, c13 = st.columns(3)
+            with c11:
+                st.selectbox("Grau de Instrução", ["", "Fundamental Incompleto", "Fundamental Completo", "Médio Incompleto", "Médio Completo", "Superior Incompleto", "Superior Completo", "Pós-graduação", "Mestrado", "Doutorado"], key="grau_ins"); st.selectbox("Status", ["Ativo", "Inativo"], key="status")
+            with c12:
+                st.date_input("Data de Conversao", key="data_conv", min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY"); st.date_input("Data de Admissao", key="data_adm", min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY")
+            with c13: st.text_area("Observações", key="observacoes")
+            st.markdown("---"); st.form_submit_button("💾 Salvar Membro", on_click=submeter_formulario)
 
-        with tab2:
-            st.header("Visão Geral da Membresia")
-            if "membros" in st.session_state and st.session_state.membros:
-                df_membros_tab2 = pd.DataFrame(st.session_state.membros)
-                total_membros = len(df_membros_tab2); ativos = len(df_membros_tab2[df_membros_tab2['Status'].str.upper() == 'ATIVO']); inativos = len(df_membros_tab2[df_membros_tab2['Status'].str.upper() == 'INATIVO']); sem_status = total_membros - ativos - inativos
-                col1_metric, col2_metric, col3_metric, col4_metric = st.columns(4)
-                col1_metric.metric("Total de Membros", f"{total_membros} 👥"); col2_metric.metric("Membros Ativos", f"{ativos} 🟢"); col3_metric.metric("Membros Inativos", f"{inativos} 🔴"); col4_metric.metric("Status Não Definido", f"{sem_status} ⚪")
-                st.divider()
-                if st.session_state.get('confirmando_status', False):
-                    novo_status = st.session_state.get('novo_status', 'DESCONHECIDO'); cor = "green" if novo_status == "ATIVO" else "red"
-                    with st.expander(f"**⚠️ CONFIRMAÇÃO DE MUDANÇA DE STATUS**", expanded=True):
-                        st.markdown(f"Você está prestes a alterar o status de **{len(st.session_state.chaves_para_status)}** membro(s) para <span style='color:{cor}; font-weight:bold;'>{novo_status}</span>.", unsafe_allow_html=True)
-                        st.text_area("Adicionar Observação (opcional):", key="obs_status")
-                        col_confirma, col_cancela = st.columns(2)
-                        with col_confirma: st.button("Sim, confirmar alteração", use_container_width=True, type="primary", on_click=confirmar_mudanca_status)
-                        with col_cancela: st.button("Não, cancelar", use_container_width=True, on_click=cancelar_mudanca_status)
-                
-                st.session_state.selecao_lista = set()
-                for index, membro in df_membros_tab2.iterrows():
+    with tab2:
+        set_tab(1)
+        st.header("Visão Geral da Membresia")
+        if "membros" in st.session_state and st.session_state.membros:
+            df_membros_tab2 = pd.DataFrame(st.session_state.membros)
+            total_membros = len(df_membros_tab2); ativos = len(df_membros_tab2[df_membros_tab2['Status'].str.upper() == 'ATIVO']); inativos = len(df_membros_tab2[df_membros_tab2['Status'].str.upper() == 'INATIVO']); sem_status = total_membros - ativos - inativos
+            col1_metric, col2_metric, col3_metric, col4_metric = st.columns(4)
+            col1_metric.metric("Total de Membros", f"{total_membros} 👥"); col2_metric.metric("Membros Ativos", f"{ativos} 🟢"); col3_metric.metric("Membros Inativos", f"{inativos} 🔴"); col4_metric.metric("Status Não Definido", f"{sem_status} ⚪")
+            st.divider()
+            if st.session_state.get('confirmando_status', False):
+                novo_status = st.session_state.get('novo_status', 'DESCONHECIDO'); cor = "green" if novo_status == "ATIVO" else "red"
+                with st.expander(f"**⚠️ CONFIRMAÇÃO DE MUDANÇA DE STATUS**", expanded=True):
+                    st.markdown(f"Você está prestes a alterar o status de **{len(st.session_state.chaves_para_status)}** membro(s) para <span style='color:{cor}; font-weight:bold;'>{novo_status}</span>.", unsafe_allow_html=True)
+                    st.text_area("Adicionar Observação (opcional):", key="obs_status")
+                    col_confirma, col_cancela = st.columns(2)
+                    with col_confirma: st.button("Sim, confirmar alteração", use_container_width=True, type="primary", on_click=confirmar_mudanca_status)
+                    with col_cancela: st.button("Não, cancelar", use_container_width=True, on_click=cancelar_mudanca_status)
+
+            st.session_state.selecao_lista = set()
+            for index, membro in df_membros_tab2.iterrows():
+                with st.container(border=True):
+                    col_selecao, col_info = st.columns([1, 15])
+                    with col_selecao:
+                        selecionado = st.checkbox("", key=f"select_list_{index}", label_visibility="collapsed")
+                        if selecionado: st.session_state.selecao_lista.add((membro.get('Nome'), membro.get('Data de Nascimento')))
+                    with col_info:
+                        status_icon = '🟢' if str(membro.get('Status')).upper() == 'ATIVO' else '🔴' if str(membro.get('Status')).upper() == 'INATIVO' else '⚪'
+                        st.subheader(f"{status_icon} {membro.get('Nome')}")
+                        st.caption(f"CPF: {membro.get('CPF')} | Celular: {membro.get('Celular')}")
+                    with st.expander("Ver Todos os Detalhes"): display_member_details(membro, f"list_{index}")
+        else:
+            st.info("Nenhum membro cadastrado.")
+
+    with tab3:
+        set_tab(2)
+        st.header("Buscar e Realizar Ações")
+        col_busca1, col_busca2 = st.columns(2)
+        with col_busca1: termo = st.text_input("Buscar por Nome ou CPF", key="busca_termo").strip().upper()
+        with col_busca2: data_filtro = st.date_input("Buscar por Data de Nascimento", value=None, key="busca_data", min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY")
+        df_original = pd.DataFrame(st.session_state.membros)
+        if df_original.empty: st.warning("Não há membros cadastrados para exibir.")
+        else:
+            df_filtrado = df_original.copy()
+            if 'CPF' in df_filtrado.columns: df_filtrado['CPF'] = df_filtrado['CPF'].astype(str)
+            if termo:
+                mask_termo = df_filtrado.apply(lambda row: termo in str(row.get('Nome', '')).upper() or termo in str(row.get('CPF', '')), axis=1)
+                df_filtrado = df_filtrado[mask_termo]
+            if data_filtro:
+                data_filtro_str = data_filtro.strftime('%d/%m/%Y'); df_filtrado = df_filtrado[df_filtrado['Data de Nascimento'] == data_filtro_str]
+            if df_filtrado.empty:
+                st.warning("Nenhum membro encontrado com os critérios de busca especificados.")
+            else:
+                st.session_state.selecao_busca = set()
+                for index, membro in df_filtrado.iterrows():
                     with st.container(border=True):
-                        col_selecao, col_info = st.columns([1, 15])
-                        with col_selecao:
-                            selecionado = st.checkbox("", key=f"select_list_{index}", label_visibility="collapsed")
-                            if selecionado: st.session_state.selecao_lista.add((membro.get('Nome'), membro.get('Data de Nascimento')))
-                        with col_info:
+                        col_selecao_b, col_info_b = st.columns([1, 15])
+                        with col_selecao_b:
+                            selecionado = st.checkbox("", key=f"select_search_{index}", label_visibility="collapsed")
+                            if selecionado: st.session_state.selecao_busca.add((membro.get('Nome'), membro.get('Data de Nascimento')))
+                        with col_info_b:
                             status_icon = '🟢' if str(membro.get('Status')).upper() == 'ATIVO' else '🔴' if str(membro.get('Status')).upper() == 'INATIVO' else '⚪'
                             st.subheader(f"{status_icon} {membro.get('Nome')}")
-                            st.caption(f"CPF: {membro.get('CPF')} | Celular: {membro.get('Celular')}")
-                        with st.expander("Ver Todos os Detalhes"): display_member_details(membro, f"list_{index}")
-            else:
-                st.info("Nenhum membro cadastrado.")
+                            st.caption(f"CPF: {membro.get('CPF')} | Data de Admissão: {membro.get('Data de Admissao')}")
+            if st.session_state.get('confirmando_exclusao', False):
+                with st.expander("⚠️ CONFIRMAÇÃO DE EXCLUSÃO ⚠️", expanded=True):
+                    st.warning(f"Deseja realmente deletar os {len(st.session_state.chaves_para_excluir)} itens selecionados?")
+                    c1, c2 = st.columns(2)
+                    if c1.button("Sim, excluir definitivamente", use_container_width=True, type="primary"):
+                        membros_atualizados = [m for m in st.session_state.membros if (m.get('Nome'), m.get('Data de Nascimento')) not in st.session_state.chaves_para_excluir]
+                        st.session_state.membros = membros_atualizados; salvar_membros(membros_atualizados); st.session_state.confirmando_exclusao, st.session_state.chaves_para_excluir = False, set(); st.success("Registros excluídos!"); st.rerun()
+                    if c2.button("Não, voltar", use_container_width=True):
+                        st.session_state.confirmando_exclusao, st.session_state.chaves_para_excluir = False, set(); st.rerun()
 
-        with tab3:
-            st.header("Buscar e Realizar Ações")
-            col_busca1, col_busca2 = st.columns(2)
-            with col_busca1: termo = st.text_input("Buscar por Nome ou CPF", key="busca_termo").strip().upper()
-            with col_busca2: data_filtro = st.date_input("Buscar por Data de Nascimento", value=None, key="busca_data", min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY")
-            
-            df_original = pd.DataFrame(st.session_state.membros)
-            if df_original.empty: st.warning("Não há membros cadastrados para exibir.")
-            else:
-                df_filtrado = df_original.copy()
-                if 'CPF' in df_filtrado.columns: df_filtrado['CPF'] = df_filtrado['CPF'].astype(str)
-                if termo:
-                    mask_termo = df_filtrado.apply(lambda row: termo in str(row.get('Nome', '')).upper() or termo in str(row.get('CPF', '')), axis=1)
-                    df_filtrado = df_filtrado[mask_termo]
-                if data_filtro:
-                    data_filtro_str = data_filtro.strftime('%d/%m/%Y'); df_filtrado = df_filtrado[df_filtrado['Data de Nascimento'] == data_filtro_str]
-                
-                if df_filtrado.empty:
-                    st.warning("Nenhum membro encontrado com os critérios de busca especificados.")
+    with tab4:
+        set_tab(3)
+        st.header("Aniversariantes do Mês")
+        if "membros" in st.session_state and st.session_state.membros:
+            df_membros = pd.DataFrame(st.session_state.membros)
+            df_membros['Data de Nascimento_dt'] = pd.to_datetime(df_membros['Data de Nascimento'], format='%d/%m/%Y', errors='coerce')
+            df_membros.dropna(subset=['Data de Nascimento_dt'], inplace=True)
+            df_membros['Mês'] = df_membros['Data de Nascimento_dt'].dt.month; df_membros['Dia'] = df_membros['Data de Nascimento_dt'].dt.day
+            meses_pt = {"Janeiro": 1, "Fevereiro": 2, "Março": 3, "Abril": 4, "Maio": 5, "Junho": 6, "Julho": 7, "Agosto": 8, "Setembro": 9, "Outubro": 10, "Novembro": 11, "Dezembro": 12}
+            mes_selecionado = st.selectbox("Escolha o mês para ver a lista de aniversariantes:", options=list(meses_pt.keys()), index=None, placeholder="Selecione um mês...")
+            if mes_selecionado:
+                num_mes = meses_pt[mes_selecionado]
+                aniversariantes_df = df_membros[df_membros['Mês'] == num_mes].sort_values('Dia')
+                st.markdown(f"### Aniversariantes de {mes_selecionado}")
+                if aniversariantes_df.empty:
+                    st.info("Nenhum aniversariante encontrado para este mês.")
                 else:
-                    st.session_state.selecao_busca = set()
-                    for index, membro in df_filtrado.iterrows():
-                        with st.container(border=True):
-                            col_selecao_b, col_info_b = st.columns([1, 15])
-                            with col_selecao_b:
-                                selecionado = st.checkbox("", key=f"select_search_{index}", label_visibility="collapsed")
-                                if selecionado: st.session_state.selecao_busca.add((membro.get('Nome'), membro.get('Data de Nascimento')))
-                            with col_info_b:
-                                status_icon = '🟢' if str(membro.get('Status')).upper() == 'ATIVO' else '🔴' if str(membro.get('Status')).upper() == 'INATIVO' else '⚪'
-                                st.subheader(f"{status_icon} {membro.get('Nome')}")
-                                st.caption(f"CPF: {membro.get('CPF')} | Data de Admissão: {membro.get('Data de Admissao')}")
-                
-                if st.session_state.get('confirmando_exclusao', False):
-                    with st.expander("⚠️ CONFIRMAÇÃO DE EXCLUSÃO ⚠️", expanded=True):
-                        st.warning(f"Deseja realmente deletar os {len(st.session_state.chaves_para_excluir)} itens selecionados?")
-                        c1, c2 = st.columns(2)
-                        if c1.button("Sim, excluir definitivamente", use_container_width=True, type="primary"):
-                            membros_atualizados = [m for m in st.session_state.membros if (m.get('Nome'), m.get('Data de Nascimento')) not in st.session_state.chaves_para_excluir]
-                            st.session_state.membros = membros_atualizados; salvar_membros(membros_atualizados); st.session_state.confirmando_exclusao, st.session_state.chaves_para_excluir = False, set(); st.success("Registros excluídos!"); st.rerun()
-                        if c2.button("Não, voltar", use_container_width=True):
-                            st.session_state.confirmando_exclusao, st.session_state.chaves_para_excluir = False, set(); st.rerun()
+                    df_display = aniversariantes_df[['Dia', 'Nome', 'Data de Nascimento']].copy()
+                    df_display.rename(columns={'Nome': 'Nome Completo', 'Data de Nascimento': 'Data de Nascimento Completa'}, inplace=True)
+                    st.dataframe(df_display, use_container_width=True, hide_index=True)
+                    st.markdown("---")
+                    pdf_data = criar_pdf_aniversariantes(df_display, mes_selecionado)
+                    st.download_button(label=f"📕 Exportar PDF de {mes_selecionado}", data=pdf_data, file_name=f"aniversariantes_{mes_selecionado.lower()}.pdf", mime="application/pdf")
+        else:
+            st.info("Não há membros cadastrados para gerar a lista de aniversariantes.")
 
-        with tab4:
-            st.header("Aniversariantes do Mês")
-            if "membros" in st.session_state and st.session_state.membros:
-                df_membros = pd.DataFrame(st.session_state.membros)
-                df_membros['Data de Nascimento_dt'] = pd.to_datetime(df_membros['Data de Nascimento'], format='%d/%m/%Y', errors='coerce')
-                df_membros.dropna(subset=['Data de Nascimento_dt'], inplace=True)
-                df_membros['Mês'] = df_membros['Data de Nascimento_dt'].dt.month; df_membros['Dia'] = df_membros['Data de Nascimento_dt'].dt.day
-                meses_pt = {"Janeiro": 1, "Fevereiro": 2, "Março": 3, "Abril": 4, "Maio": 5, "Junho": 6, "Julho": 7, "Agosto": 8, "Setembro": 9, "Outubro": 10, "Novembro": 11, "Dezembro": 12}
-                mes_selecionado = st.selectbox("Escolha o mês para ver a lista de aniversariantes:", options=list(meses_pt.keys()), index=None, placeholder="Selecione um mês...")
-                if mes_selecionado:
-                    num_mes = meses_pt[mes_selecionado]
-                    aniversariantes_df = df_membros[df_membros['Mês'] == num_mes].sort_values('Dia')
-                    st.markdown(f"### Aniversariantes de {mes_selecionado}")
-                    if aniversariantes_df.empty:
-                        st.info("Nenhum aniversariante encontrado para este mês.")
-                    else:
-                        df_display = aniversariantes_df[['Dia', 'Nome', 'Data de Nascimento']].copy()
-                        df_display.rename(columns={'Nome': 'Nome Completo', 'Data de Nascimento': 'Data de Nascimento Completa'}, inplace=True)
-                        st.dataframe(df_display, use_container_width=True, hide_index=True)
-                        st.markdown("---")
-                        pdf_data = criar_pdf_aniversariantes(df_display, mes_selecionado)
-                        st.download_button(label=f"📕 Exportar PDF de {mes_selecionado}", data=pdf_data, file_name=f"aniversariantes_{mes_selecionado.lower()}.pdf", mime="application/pdf")
-            else:
-                st.info("Não há membros cadastrados para gerar a lista de aniversariantes.")
-
-        with tab5:
-            st.header("Gerar Ficha Individual de Membro")
-            if "membros" in st.session_state and st.session_state.membros:
-                lista_nomes = [""] + sorted([m.get("Nome", "") for m in st.session_state.membros if m.get("Nome")])
-                membro_selecionado_nome = st.selectbox("Selecione ou digite o nome do membro para gerar a ficha:", options=lista_nomes, placeholder="Selecione um membro...", index=0)
-                if membro_selecionado_nome:
-                    membro_dict = next((m for m in st.session_state.membros if m.get("Nome") == membro_selecionado_nome), None)
-                    if membro_dict:
-                        st.divider()
-                        st.subheader(f"Ficha de: {membro_dict['Nome']}")
-                        display_member_details(membro_dict, "ficha_individual")
-                        st.divider()
-                        if st.button("📄 Exportar Ficha como PDF", key="export_ficha_pdf"):
-                            with st.spinner("Gerando PDF da ficha..."):
-                                pdf_data = criar_pdf_ficha(membro_dict)
-                                st.download_button("Clique para Baixar o PDF", pdf_data, f"ficha_{membro_dict['Nome'].replace(' ', '_').lower()}.pdf", "application/pdf", key=f"download_pdf_{membro_dict['Nome']}")
-            else:
-                st.warning("Não há membros cadastrados para gerar fichas.")
+    with tab5:
+        set_tab(4)
+        st.header("Gerar Ficha Individual de Membro")
+        if "membros" in st.session_state and st.session_state.membros:
+            lista_nomes = [""] + sorted([m.get("Nome", "") for m in st.session_state.membros if m.get("Nome")])
+            membro_selecionado_nome = st.selectbox("Selecione ou digite o nome do membro para gerar a ficha:", options=lista_nomes, placeholder="Selecione um membro...", index=0)
+            if membro_selecionado_nome:
+                membro_dict = next((m for m in st.session_state.membros if m.get("Nome") == membro_selecionado_nome), None)
+                if membro_dict:
+                    st.divider()
+                    st.subheader(f"Ficha de: {membro_dict['Nome']}")
+                    display_member_details(membro_dict, "ficha_individual")
+                    st.divider()
+                    if st.button("📄 Exportar Ficha como PDF", key="export_ficha_pdf"):
+                        with st.spinner("Gerando PDF da ficha..."):
+                            pdf_data = criar_pdf_ficha(membro_dict)
+                            st.download_button("Clique para Baixar o PDF", pdf_data, f"ficha_{membro_dict['Nome'].replace(' ', '_').lower()}.pdf", "application/pdf", key=f"download_pdf_{membro_dict['Nome']}")
+        else:
+            st.warning("Não há membros cadastrados para gerar fichas.")
