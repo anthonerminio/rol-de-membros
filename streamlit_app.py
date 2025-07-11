@@ -1,4 +1,4 @@
-# Versão Final Completa - v4.2
+# Versão Final Completa - v4.2.2
 import streamlit as st
 import pandas as pd
 import gspread
@@ -11,6 +11,7 @@ from fpdf import FPDF
 from io import BytesIO
 from streamlit_oauth import OAuth2Component
 import jwt
+import matplotlib.font_manager
 
 # --- 1) Configuração da página ---
 st.set_page_config(layout="wide", page_title="Fichário de Membros v4.2")
@@ -37,61 +38,81 @@ except (KeyError, FileNotFoundError):
 def criar_pdf_lista(df):
     pdf = FPDF(orientation='L', unit='mm', format='A4')
     pdf.add_page()
-    pdf.set_font('helvetica', 'B', 8)
+    try:
+        font_path = matplotlib.font_manager.findfont("DejaVu Sans")
+        pdf.add_font("DejaVu", "", font_path, uni=True)
+        pdf.set_font("DejaVu", size=8)
+    except:
+        pdf.set_font('helvetica', 'B', 8)
+
     cols = df.columns
     col_widths = {'Nome': 45, 'CPF': 25, 'Data de Nascimento': 22, 'Celular': 25, 'Estado Civil': 22, 'Profissão': 25}
     line_height = pdf.font_size * 2.5
+    
+    pdf.set_font_size(10)
     for col in cols:
         width = col_widths.get(col, 18)
         pdf.cell(width, line_height, col, border=1, ln=0, align='C')
     pdf.ln(line_height)
-    pdf.set_font('helvetica', '', 7)
+    
+    pdf.set_font_size(7)
     for index, row in df.iterrows():
         for col in cols:
             width = col_widths.get(col, 18)
-            text = str(row[col]).encode('latin-1', 'replace').decode('latin-1')
-            pdf.cell(width, line_height, text, border=1, ln=0, align='L')
+            pdf.cell(width, line_height, str(row[col]), border=1, ln=0, align='L')
         pdf.ln(line_height)
-    return bytes(pdf.output(dest='S'))
+    return bytes(pdf.output())
 
 def criar_pdf_aniversariantes(df, mes_nome):
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.add_page()
-    pdf.set_font('helvetica', 'B', 16)
+    try:
+        font_path = matplotlib.font_manager.findfont("DejaVu Sans")
+        pdf.add_font("DejaVu", "", font_path, uni=True)
+        pdf.set_font("DejaVu", size=16)
+    except:
+        pdf.set_font('helvetica', 'B', 16)
+
     pdf.cell(0, 10, f'Aniversariantes de {mes_nome}', 0, 1, 'C')
     pdf.ln(10)
-    pdf.set_font('helvetica', 'B', 12)
+    pdf.set_font('DejaVu', size=12) if 'DejaVu' in pdf.font_family else pdf.set_font('helvetica', 'B', 12)
     pdf.cell(130, 10, 'Nome Completo', 1, 0, 'C')
     pdf.cell(60, 10, 'Data de Nascimento', 1, 1, 'C')
-    pdf.set_font('helvetica', '', 11)
+    pdf.set_font('DejaVu', size=11) if 'DejaVu' in pdf.font_family else pdf.set_font('helvetica', '', 11)
     for index, row in df.iterrows():
-        nome = str(row['Nome Completo']).encode('latin-1', 'replace').decode('latin-1')
-        data_nasc = str(row['Data de Nascimento Completa']).encode('latin-1', 'replace').decode('latin-1')
-        pdf.cell(130, 10, nome, 1, 0, 'L')
-        pdf.cell(60, 10, data_nasc, 1, 1, 'C')
-    return bytes(pdf.output(dest='S'))
+        pdf.cell(130, 10, str(row['Nome Completo']), 1, 0, 'L')
+        pdf.cell(60, 10, str(row['Data de Nascimento Completa']), 1, 1, 'C')
+    return bytes(pdf.output())
 
 def criar_pdf_ficha(membro):
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.add_page()
-    pdf.set_font('helvetica', 'B', 16)
+    try:
+        font_path = matplotlib.font_manager.findfont("DejaVu Sans")
+        pdf.add_font("DejaVu", "", font_path, uni=True)
+        pdf.set_font('DejaVu', size=16)
+    except:
+        pdf.set_font('helvetica', 'B', 16)
+    
     pdf.cell(0, 10, 'Ficha Individual de Membro - PIB Gaibu', 0, 1, 'C')
-    pdf.set_font('helvetica', 'B', 14)
+    pdf.set_font('DejaVu', size=14) if 'DejaVu' in pdf.font_family else pdf.set_font('helvetica', 'B', 14)
     pdf.cell(0, 10, membro.get("Nome", ""), 0, 1, 'C')
     pdf.ln(5)
 
     def draw_field(label, value):
         if value and str(value).strip():
-            pdf.set_font('helvetica', 'B', 10)
+            pdf.set_font('DejaVu', size=10) if 'DejaVu' in pdf.font_family else pdf.set_font('helvetica', 'B', 10)
             pdf.cell(50, 7, f"{label}:", 0, 0)
-            pdf.set_font('helvetica', '', 10)
+            pdf.set_font('DejaVu', size=10) if 'DejaVu' in pdf.font_family else pdf.set_font('helvetica', '', 10)
             pdf.multi_cell(0, 7, str(value), 0, 1)
 
-    # Seção Dados Pessoais
-    pdf.set_font('helvetica', 'B', 12)
-    pdf.cell(0, 10, "👤 Dados Pessoais", 0, 1, 'L')
-    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-    pdf.ln(2)
+    def draw_section_header(title):
+        pdf.set_font('DejaVu', size=12) if 'DejaVu' in pdf.font_family else pdf.set_font('helvetica', 'B', 12)
+        pdf.cell(0, 10, title, 0, 1, 'L')
+        pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+        pdf.ln(2)
+
+    draw_section_header("👤 Dados Pessoais")
     draw_field("CPF", membro.get("CPF"))
     draw_field("Data de Nascimento", membro.get("Data de Nascimento"))
     draw_field("Sexo", membro.get("Sexo"))
@@ -100,11 +121,7 @@ def criar_pdf_ficha(membro):
     draw_field("Celular", membro.get("Celular"))
     pdf.ln(5)
 
-    # Seção Endereço
-    pdf.set_font('helvetica', 'B', 12)
-    pdf.cell(0, 10, "🏠 Endereço", 0, 1, 'L')
-    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-    pdf.ln(2)
+    draw_section_header("🏠 Endereço")
     draw_field("CEP", membro.get("CEP"))
     draw_field("Endereço", membro.get("Endereco"))
     draw_field("Bairro", membro.get("Bairro"))
@@ -112,11 +129,7 @@ def criar_pdf_ficha(membro):
     draw_field("UF", membro.get("UF (Endereco)"))
     pdf.ln(5)
     
-    # Seção Filiação e Origem
-    pdf.set_font('helvetica', 'B', 12)
-    pdf.cell(0, 10, "👨‍👩‍👧 Filiação e Origem", 0, 1, 'L')
-    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-    pdf.ln(2)
+    draw_section_header("👨‍👩‍👧 Filiação e Origem")
     draw_field("Nome do Pai", membro.get("Nome do Pai"))
     draw_field("Nome da Mãe", membro.get("Nome da Mae"))
     draw_field("Cônjuge", membro.get("Nome do(a) Cônjuge"))
@@ -124,11 +137,7 @@ def criar_pdf_ficha(membro):
     draw_field("Naturalidade", membro.get("Naturalidade"))
     pdf.ln(5)
 
-    # Seção Dados Eclesiásticos
-    pdf.set_font('helvetica', 'B', 12)
-    pdf.cell(0, 10, "⛪ Dados Eclesiásticos", 0, 1, 'L')
-    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
-    pdf.ln(2)
+    draw_section_header("⛪ Dados Eclesiásticos")
     draw_field("Status", membro.get("Status"))
     draw_field("Forma de Admissão", membro.get("Forma de Admissao"))
     draw_field("Data de Admissão", membro.get("Data de Admissao"))
@@ -566,23 +575,25 @@ else:
     with tab5:
         st.header("Gerar Ficha Individual de Membro")
         if "membros" in st.session_state and st.session_state.membros:
-            lista_nomes = ["Selecione um membro..."] + sorted([m.get("Nome", "") for m in st.session_state.membros])
+            lista_nomes = [""] + sorted([m.get("Nome", "") for m in st.session_state.membros])
             membro_selecionado_nome = st.selectbox(
                 "Selecione ou digite o nome do membro para gerar a ficha:", 
-                options=lista_nomes, 
+                options=lista_nomes,
+                placeholder="Selecione um membro...",
                 index=0
             )
-            if membro_selecionado_nome and membro_selecionado_nome != "Selecione um membro...":
+            if membro_selecionado_nome:
                 membro_dict = next((m for m in st.session_state.membros if m.get("Nome") == membro_selecionado_nome), None)
                 if membro_dict:
                     st.divider()
-                    st.subheader(f"Ficha de: {membro_dict['Nome']}")
                     
                     def display_field(label, value):
                         if value and str(value).strip():
                             st.markdown(f"**{label}:** {value}")
 
-                    # Layout da Ficha
+                    st.subheader(f"Ficha de: {membro_dict['Nome']}")
+                    st.markdown("---")
+
                     st.markdown("##### 👤 Dados Pessoais e Contato")
                     col1, col2 = st.columns(2)
                     with col1:
@@ -597,10 +608,10 @@ else:
                     st.divider()
                     st.markdown("##### ⛪ Dados Eclesiásticos")
                     col3, col4 = st.columns(2)
-                    with c3:
+                    with col3:
                         display_field("Status", membro_dict.get("Status"))
                         display_field("Forma de Admissão", membro_dict.get("Forma de Admissao"))
-                    with c4:
+                    with col4:
                         display_field("Data de Admissão", membro_dict.get("Data de Admissao"))
                         display_field("Data de Conversão", membro_dict.get("Data de Conversao"))
 
@@ -614,8 +625,9 @@ else:
                         display_field("Bairro", membro_dict.get("Bairro"))
                         display_field("Cidade", membro_dict.get("Cidade"))
                         display_field("UF", membro_dict.get("UF (Endereco)"))
+                    
                     st.divider()
-
+                    
                     if st.button("📄 Exportar Ficha como PDF", key="export_ficha_pdf"):
                         with st.spinner("Gerando PDF da ficha..."):
                             pdf_data = criar_pdf_ficha(membro_dict)
