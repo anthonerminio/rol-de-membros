@@ -11,10 +11,10 @@ from io import BytesIO
 from streamlit_oauth import OAuth2Component
 import jwt
 
-# --- 1) Configuração da página ---
+# --- 1) Configuração da página (DEVE SER O PRIMEIRO COMANDO STREAMLIT) ---
 st.set_page_config(layout="wide", page_title="Fichário de Membros PIB Gaibu")
 
-# --- A) Parâmetros de Login Google ---
+# --- A) Parâmetros de Login Google (lendo dos Segredos) ---
 try:
     GOOGLE_CLIENT_ID = st.secrets["google_oauth"]["client_id"]
     GOOGLE_CLIENT_SECRET = st.secrets["google_oauth"]["client_secret"]
@@ -110,7 +110,6 @@ def carregar_membros():
         ws.insert_row(HEADERS, 1)
         return []
     records = ws.get_all_records()
-    # CORREÇÃO: Garante que todos os CPFs sejam carregados como texto (string)
     for record in records:
         if 'CPF' in record:
             record['CPF'] = str(record['CPF'])
@@ -160,6 +159,29 @@ def limpar_formulario():
         else:
             st.session_state[key] = ""
     st.session_state.sexo = "M"
+
+# CORREÇÃO 2: Lógica de salvamento movida para uma função de callback
+def submeter_formulario():
+    """Valida, salva e limpa o formulário."""
+    novo = {}
+    for header, key in MAP_KEYS.items():
+        valor = st.session_state.get(key, "")
+        if isinstance(valor, date): novo[header] = valor.strftime('%d/%m/%Y')
+        elif isinstance(valor, str): novo[header] = valor.strip().upper()
+        else: novo[header] = valor
+
+    cpf_digitado = novo.get("CPF")
+    is_duplicado = False
+    if cpf_digitado:
+        is_duplicado = any(str(m.get("CPF")) == cpf_digitado for m in st.session_state.membros)
+
+    if is_duplicado:
+        st.error("Já existe um membro cadastrado com este CPF.")
+    else:
+        st.session_state.membros.append(novo)
+        salvar_membros(st.session_state.membros)
+        st.success("Membro salvo com sucesso!")
+        limpar_formulario()
 
 def init_state():
     if "authenticated" not in st.session_state:
@@ -224,7 +246,8 @@ else:
 
     with tab1:
         st.header("Cadastro de Novos Membros")
-        with st.form("form_membro", clear_on_submit=False):
+        # CORREÇÃO 1: O botão de submit agora usa o callback on_click
+        with st.form("form_membro"):
             st.subheader("Informações Pessoais")
             c1, c2 = st.columns(2)
             with c1:
@@ -250,18 +273,16 @@ else:
             st.subheader("Endereço")
             col_cep, col_btn_cep, col_spacer = st.columns([1,1,2])
             with col_cep:
-                cep_input = st.text_input("CEP", key="cep")
+                st.text_input("CEP", key="cep")
             with col_btn_cep:
-                buscar_cep_btn = st.form_submit_button("🔎 Buscar CEP")
+                if st.form_submit_button("🔎 Buscar CEP"):
+                    dados_cep = buscar_cep(st.session_state.cep)
+                    if dados_cep:
+                        st.session_state.update(dados_cep)
+                        st.success("Endereço preenchido!")
+                    elif st.session_state.cep: 
+                        st.warning("CEP não encontrado ou inválido.")
             
-            if buscar_cep_btn:
-                dados_cep = buscar_cep(st.session_state.cep)
-                if dados_cep:
-                    st.session_state.update(dados_cep)
-                    st.success("Endereço preenchido!")
-                elif st.session_state.cep: 
-                    st.warning("CEP não encontrado ou inválido.")
-
             c7, c8, c9, c10 = st.columns(4)
             with c7:
                 st.text_input("Endereco", key="endereco")
@@ -283,29 +304,7 @@ else:
                  st.text_area("Observações", key="observacoes")
             
             st.markdown("---")
-            btn_salvar = st.form_submit_button("💾 Salvar Membro")
-
-        if btn_salvar:
-            novo = {}
-            for header, key in MAP_KEYS.items():
-                valor = st.session_state.get(key, "")
-                if isinstance(valor, date): novo[header] = valor.strftime('%d/%m/%Y')
-                elif isinstance(valor, str): novo[header] = valor.strip().upper()
-                else: novo[header] = valor
-            
-            cpf_digitado = novo.get("CPF")
-            is_duplicado = False
-            if cpf_digitado:
-                is_duplicado = any(str(m.get("CPF")) == cpf_digitado for m in st.session_state.membros)
-
-            if is_duplicado:
-                st.error("Já existe um membro cadastrado com este CPF.")
-            else:
-                st.session_state.membros.append(novo)
-                salvar_membros(st.session_state.membros)
-                st.success("Membro salvo com sucesso!")
-                limpar_formulario()
-                st.rerun()
+            st.form_submit_button("💾 Salvar Membro", on_click=submeter_formulario)
 
     with tab2:
         st.header("Lista de Membros")
@@ -338,10 +337,8 @@ else:
             st.warning("Não há membros cadastrados para exibir.")
         else:
             df_filtrado = df_original.copy()
-            # Garante que a coluna CPF seja string para a busca
             if 'CPF' in df_filtrado.columns:
                 df_filtrado['CPF'] = df_filtrado['CPF'].astype(str)
-            
             if termo:
                 mask_termo = df_filtrado.apply(lambda row: termo in str(row.get('Nome', '')).upper() or termo in str(row.get('CPF', '')), axis=1)
                 df_filtrado = df_filtrado[mask_termo]
@@ -378,7 +375,6 @@ else:
                 else:
                     with col1:
                         if st.button("🗑️ Excluir Registros Selecionados", use_container_width=True, disabled=sem_selecao):
-                            # CORREÇÃO: Garante que os CPFs selecionados sejam strings
                             st.session_state.cpfs_para_excluir = set(registros_selecionados["CPF"].astype(str))
                             st.session_state.confirmando_exclusao = True
                             st.rerun()
