@@ -1,4 +1,3 @@
-# Versão Final Completa - v4.2.3
 import streamlit as st
 import pandas as pd
 import gspread
@@ -11,6 +10,7 @@ from fpdf import FPDF
 from io import BytesIO
 from streamlit_oauth import OAuth2Component
 import jwt
+import matplotlib.font_manager
 
 # --- 1) Configuração da página ---
 st.set_page_config(layout="wide", page_title="Fichário de Membros v4.2")
@@ -91,7 +91,8 @@ def criar_pdf_ficha(membro):
             pdf.set_font('DejaVu', size=10)
             pdf.cell(50, 7, f"{label}:", 0, 0)
             pdf.set_font('DejaVu', size=10)
-            pdf.multi_cell(0, 7, str(value), 0, 1)
+            # CORREÇÃO: Usando argumentos nomeados e corretos para multi_cell
+            pdf.multi_cell(w=0, h=7, text=str(value), border=0, align='L')
 
     def draw_section_header(title):
         pdf.set_font('DejaVu', size=12)
@@ -330,6 +331,7 @@ else:
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["Cadastro de Membros", "Lista de Membros", "Buscar e Excluir", "Aniversariantes do Mês", "Ficha Individual"])
 
     with tab1:
+        # CÓDIGO DA ABA 1 (COMPLETO E FUNCIONAL)
         st.header("Cadastro de Novos Membros")
         with st.form("form_membro"):
             st.subheader("Informações Pessoais")
@@ -366,7 +368,6 @@ else:
                         st.toast("Endereço preenchido!", icon="🏠")
                     elif st.session_state.cep: 
                         st.warning("CEP não encontrado ou inválido.")
-            
             c7, c8, c9, c10 = st.columns(4)
             with c7:
                 st.text_input("Endereco", key="endereco")
@@ -386,59 +387,44 @@ else:
                 st.date_input("Data de Admissao", key="data_adm", min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY")
             with c13:
                  st.text_area("Observações", key="observacoes")
-            
             st.markdown("---")
             st.form_submit_button("💾 Salvar Membro", on_click=submeter_formulario)
 
     with tab2:
+        # CÓDIGO DA ABA 2 (COMPLETO E FUNCIONAL)
         st.header("Visão Geral da Membresia")
-        
         if "membros" in st.session_state and st.session_state.membros:
             df_membros_tab2 = pd.DataFrame(st.session_state.membros)
             total_membros = len(df_membros_tab2)
             ativos = len(df_membros_tab2[df_membros_tab2['Status'].str.upper() == 'ATIVO'])
             inativos = total_membros - ativos
-
             col1_metric, col2_metric, col3_metric = st.columns(3)
             col1_metric.metric("Total de Membros", f"{total_membros} 👥")
             col2_metric.metric("Membros Ativos", f"{ativos} 🟢")
             col3_metric.metric("Membros Inativos", f"{inativos} 🔴")
             st.divider()
-
             if st.session_state.get('confirmando_status', False):
                 novo_status = st.session_state.get('novo_status', 'DESCONHECIDO')
                 cor = "green" if novo_status == "ATIVO" else "red"
                 with st.expander(f"**⚠️ CONFIRMAÇÃO DE MUDANÇA DE STATUS**", expanded=True):
                     st.markdown(f"Você está prestes a alterar o status de **{len(st.session_state.chaves_para_status)}** membro(s) para <span style='color:{cor}; font-weight:bold;'>{novo_status}</span>.", unsafe_allow_html=True)
                     st.text_area("Adicionar Observação (opcional):", key="obs_status")
-                    
                     col_confirma, col_cancela = st.columns(2)
                     with col_confirma:
                         st.button("Sim, confirmar alteração", use_container_width=True, type="primary", on_click=confirmar_mudanca_status)
                     with col_cancela:
                         st.button("Não, cancelar", use_container_width=True, on_click=cancelar_mudanca_status)
-
             df_display = df_membros_tab2.copy()
             df_display['Situação'] = df_display['Status'].apply(lambda s: '🟢' if str(s).upper() == 'ATIVO' else '🔴' if str(s).upper() == 'INATIVO' else '⚪')
             colunas_ordenadas = ['Situação'] + HEADERS
             df_display_formatado = formatar_datas(df_display.copy(), ["Data de Nascimento", "Data de Conversao", "Data de Admissao"])
             df_display_formatado = df_display_formatado[colunas_ordenadas]
-            
             df_display_formatado.insert(0, "Selecionar", False)
-            edited_df = st.data_editor(
-                df_display_formatado,
-                disabled=[col for col in df_display_formatado.columns if col != "Selecionar"],
-                hide_index=True,
-                use_container_width=True,
-                key="editor_status"
-            )
-
+            edited_df = st.data_editor(df_display_formatado, disabled=[col for col in df_display_formatado.columns if col != "Selecionar"], hide_index=True, use_container_width=True, key="editor_status")
             registros_selecionados = edited_df[edited_df["Selecionar"] == True]
             sem_selecao = registros_selecionados.empty
-            
             st.markdown("---")
             col1_act, col2_act, col3_act = st.columns([2,2,3])
-
             with col1_act:
                 if st.button("🟢 Marcar Selecionados como Ativos", use_container_width=True, disabled=sem_selecao):
                     chaves = set((row['Nome'], row['Data de Nascimento']) for _, row in registros_selecionados.iterrows())
@@ -461,29 +447,26 @@ else:
             st.info("Nenhum membro cadastrado.")
 
     with tab3:
+        # CÓDIGO DA ABA 3 (COMPLETO E FUNCIONAL)
         st.header("Buscar, Exportar e Excluir Membros")
         col_busca1, col_busca2 = st.columns(2)
         with col_busca1:
             termo = st.text_input("Buscar por Nome ou CPF", key="busca_termo").strip().upper()
         with col_busca2:
             data_filtro = st.date_input("Buscar por Data de Nascimento", value=None, key="busca_data", min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY")
-        
         st.info("Filtre para refinar a lista, ou selecione diretamente na lista completa abaixo para Excluir ou Exportar.")
-        
         df_original = pd.DataFrame(st.session_state.membros)
         if df_original.empty:
             st.warning("Não há membros cadastrados para exibir.")
         else:
             df_filtrado = df_original.copy()
-            if 'CPF' in df_filtrado.columns:
-                df_filtrado['CPF'] = df_filtrado['CPF'].astype(str)
+            if 'CPF' in df_filtrado.columns: df_filtrado['CPF'] = df_filtrado['CPF'].astype(str)
             if termo:
                 mask_termo = df_filtrado.apply(lambda row: termo in str(row.get('Nome', '')).upper() or termo in str(row.get('CPF', '')), axis=1)
                 df_filtrado = df_filtrado[mask_termo]
             if data_filtro:
                 data_filtro_str = data_filtro.strftime('%d/%m/%Y')
                 df_filtrado = df_filtrado[df_filtrado['Data de Nascimento'] == data_filtro_str]
-
             if df_filtrado.empty:
                 st.warning("Nenhum membro encontrado com os critérios de busca especificados.")
             else:
@@ -499,26 +482,19 @@ else:
                         st.warning(f"Deseja realmente deletar os {len(st.session_state.chaves_para_excluir)} itens selecionados?")
                         c1, c2 = st.columns(2)
                         if c1.button("Sim, excluir definitivamente", use_container_width=True, type="primary"):
-                            membros_atualizados = []
-                            for m in st.session_state.membros:
-                                chave_membro = (m.get('Nome'), m.get('Data de Nascimento'))
-                                if chave_membro not in st.session_state.chaves_para_excluir:
-                                    membros_atualizados.append(m)
+                            membros_atualizados = [m for m in st.session_state.membros if (m.get('Nome'), m.get('Data de Nascimento')) not in st.session_state.chaves_para_excluir]
                             st.session_state.membros = membros_atualizados
                             salvar_membros(membros_atualizados)
-                            st.session_state.confirmando_exclusao = False
-                            st.session_state.chaves_para_excluir = set()
+                            st.session_state.confirmando_exclusao, st.session_state.chaves_para_excluir = False, set()
                             st.success("Registros excluídos!")
                             st.rerun()
                         if c2.button("Não, voltar", use_container_width=True):
-                            st.session_state.confirmando_exclusao = False
-                            st.session_state.chaves_para_excluir = set()
+                            st.session_state.confirmando_exclusao, st.session_state.chaves_para_excluir = False, set()
                             st.rerun()
                 else:
                     with col1_del:
                         if st.button("🗑️ Excluir Registros Selecionados", use_container_width=True, disabled=sem_selecao):
-                            chaves_para_excluir = set((row['Nome'], row['Data de Nascimento']) for _, row in registros_selecionados.iterrows())
-                            st.session_state.chaves_para_excluir = chaves_para_excluir
+                            st.session_state.chaves_para_excluir = set((row['Nome'], row['Data de Nascimento']) for _, row in registros_selecionados.iterrows())
                             st.session_state.confirmando_exclusao = True
                             st.rerun()
                     with col2_del:
@@ -563,24 +539,15 @@ else:
         st.header("Gerar Ficha Individual de Membro")
         if "membros" in st.session_state and st.session_state.membros:
             lista_nomes = [""] + sorted([m.get("Nome", "") for m in st.session_state.membros if m.get("Nome")])
-            membro_selecionado_nome = st.selectbox(
-                "Selecione ou digite o nome do membro para gerar a ficha:", 
-                options=lista_nomes,
-                placeholder="Selecione um membro...",
-                index=0
-            )
+            membro_selecionado_nome = st.selectbox("Selecione ou digite o nome do membro para gerar a ficha:", options=lista_nomes, placeholder="Selecione um membro...", index=0)
             if membro_selecionado_nome:
                 membro_dict = next((m for m in st.session_state.membros if m.get("Nome") == membro_selecionado_nome), None)
                 if membro_dict:
                     st.divider()
-                    
+                    st.subheader(f"Ficha de: {membro_dict['Nome']}")
                     def display_field(label, value):
                         if value and str(value).strip():
                             st.markdown(f"**{label}:** {value}")
-
-                    st.subheader(f"Ficha de: {membro_dict['Nome']}")
-                    st.markdown("---")
-
                     st.markdown("##### 👤 Dados Pessoais e Contato")
                     col1, col2 = st.columns(2)
                     with col1:
@@ -591,7 +558,6 @@ else:
                         display_field("Data de Nascimento", membro_dict.get("Data de Nascimento"))
                         display_field("Celular", membro_dict.get("Celular"))
                         display_field("Profissão", membro_dict.get("Profissão"))
-
                     st.divider()
                     st.markdown("##### ⛪ Dados Eclesiásticos")
                     col3, col4 = st.columns(2)
@@ -601,7 +567,6 @@ else:
                     with col4:
                         display_field("Data de Admissão", membro_dict.get("Data de Admissao"))
                         display_field("Data de Conversão", membro_dict.get("Data de Conversao"))
-
                     st.divider()
                     st.markdown("##### 🏠 Endereço")
                     col5, col6 = st.columns(2)
@@ -612,17 +577,10 @@ else:
                         display_field("Bairro", membro_dict.get("Bairro"))
                         display_field("Cidade", membro_dict.get("Cidade"))
                         display_field("UF", membro_dict.get("UF (Endereco)"))
-                    
                     st.divider()
-                    
                     if st.button("📄 Exportar Ficha como PDF", key="export_ficha_pdf"):
                         with st.spinner("Gerando PDF da ficha..."):
                             pdf_data = criar_pdf_ficha(membro_dict)
-                            st.download_button(
-                                label="Clique para Baixar o PDF",
-                                data=pdf_data,
-                                file_name=f"ficha_{membro_dict['Nome'].replace(' ', '_').lower()}.pdf",
-                                mime="application/pdf"
-                            )
+                            st.download_button(label="Clique para Baixar o PDF", data=pdf_data, file_name=f"ficha_{membro_dict['Nome'].replace(' ', '_').lower()}.pdf", mime="application/pdf")
         else:
             st.warning("Não há membros cadastrados para gerar fichas.")
