@@ -1,4 +1,4 @@
-# Versão Final e Corrigida - v5.0.1
+# Versão Final e Corrigida - v5.0.2
 import streamlit as st
 import pandas as pd
 import gspread
@@ -13,7 +13,7 @@ from streamlit_oauth import OAuth2Component
 import jwt
 
 # --- 1) Configuração da página ---
-st.set_page_config(layout="wide", page_title="Fichário de Membros v5.0.1")
+st.set_page_config(layout="wide", page_title="Fichário de Membros v5.0.2")
 
 # --- A) Parâmetros de Login Google ---
 try:
@@ -222,6 +222,38 @@ def display_member_details(membro_dict, context_prefix):
     obs = membro_dict.get("Observações"); 
     if obs and obs.strip(): st.text_area("", value=obs, height=100, disabled=True, label_visibility="collapsed", key=f"obs_{context_prefix}")
 
+def confirmar_e_limpar_status():
+    """
+    Atualiza o status dos membros selecionados, adiciona observações se houver,
+    salva os dados e limpa o estado da sessão para a próxima ação.
+    """
+    membros_atuais = carregar_membros()
+    chaves_para_atualizar = st.session_state.get('chaves_para_status', set())
+    novo_status = st.session_state.get('novo_status', '')
+    obs_adicional = st.session_state.get('obs_status', '')
+
+    for m in membros_atuais:
+        if (m.get('Nome'), m.get('Data de Nascimento')) in chaves_para_atualizar:
+            m['Status'] = novo_status
+            if obs_adicional and obs_adicional.strip():
+                obs_existente = m.get('Observações', '')
+                data_hoje = date.today().strftime("%d/%m/%Y")
+                nota_observacao = f"[{data_hoje}] {obs_adicional.strip()}"
+                m['Observações'] = f"{obs_existente}\n{nota_observacao}".strip() if obs_existente else nota_observacao
+    
+    salvar_membros(membros_atuais)
+    st.toast("Status alterado com sucesso!", icon="👍")
+    
+    # Limpa as seleções após a ação
+    for i in range(len(membros_atuais)):
+        if f"select_list_{i}" in st.session_state:
+            st.session_state[f"select_list_{i}"] = False
+            
+    # Limpa o estado da confirmação
+    st.session_state.confirmando_status = False
+    st.session_state.chaves_para_status = set()
+    st.session_state.obs_status = ""
+
 # --- C) Lógica Principal de Exibição ---
 init_state()
 if not st.session_state.get("authenticated", False):
@@ -303,13 +335,11 @@ else:
             st.divider()
 
             chaves_selecionadas = set()
-            # Loop para exibir os membros com checkboxes dentro dos cards
             for index, row in df_membros.iterrows():
                 with st.container(border=True):
                     col_check, col_info = st.columns([0.6, 15])
                     chave_membro = (row.get('Nome'), row.get('Data de Nascimento'))
                     
-                    # O checkbox agora fica dentro do card
                     selecionado = col_check.checkbox("", key=f"select_list_{index}")
                     if selecionado:
                         chaves_selecionadas.add(chave_membro)
@@ -340,22 +370,10 @@ else:
 
             if st.session_state.get('confirmando_status'):
                 st.warning(f"Alterar status de {len(st.session_state.chaves_para_status)} membro(s) para {st.session_state.novo_status}?")
+                st.text_area("Adicionar Observação (opcional):", key="obs_status")
                 c1, c2 = st.columns(2)
-                if c1.button("Sim, confirmar", type="primary", use_container_width=True):
-                    membros_atuais = carregar_membros()
-                    for m in membros_atuais:
-                        if (m.get('Nome'), m.get('Data de Nascimento')) in st.session_state.chaves_para_status:
-                            m['Status'] = st.session_state.novo_status
-                    salvar_membros(membros_atuais)
-                    st.toast("Status alterado com sucesso!")
-                    
-                    # Limpa as seleções após a ação
-                    for i in range(len(membros_atuais)):
-                        if f"select_list_{i}" in st.session_state:
-                            st.session_state[f"select_list_{i}"] = False
-                    
-                    st.session_state.confirmando_status = False
-                    st.rerun()
+                c1.button("Sim, confirmar", type="primary", use_container_width=True, on_click=confirmar_e_limpar_status)
+                
                 if c2.button("Cancelar", use_container_width=True):
                     st.session_state.confirmando_status = False
                     st.rerun()
