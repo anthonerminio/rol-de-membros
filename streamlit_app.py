@@ -145,20 +145,23 @@ if not st.session_state.get("authenticated", False):
         )
         if token:
             # 2. LÓGICA DE LOGIN ATUALIZADA
-            try:
-                id_token = token.get("id_token")
-                # Decodifica o token para obter as informações do usuário
-                user_info = jwt.decode(id_token, options={"verify_signature": False})
-                email = user_info.get("email", "")
+            if isinstance(token, dict) and "id_token" in token:
+    try:
+        id_token = token.get("id_token")
+        # Decodifica o token para obter as informações do usuário
+        user_info = jwt.decode(id_token, options={"verify_signature": False})
+        email = user_info.get("email", "")
 
-                if email in EMAILS_PERMITIDOS:
-                    st.session_state.authenticated = True
-                    st.session_state.username = email
-                    st.rerun()
-                else:
-                    st.error("Acesso não autorizado para este e-mail.")
-            except Exception as e:
-                st.error(f"Ocorreu um erro ao processar o login: {e}")
+        if email in EMAILS_PERMITIDOS:
+            st.session_state.authenticated = True
+            st.session_state.username = email
+            st.rerun()
+        else:
+            st.error("Acesso não autorizado para este e-mail.")
+    except Exception as e:
+        st.error(f"Ocorreu um erro ao processar o login: {e}")
+elif token is not None:
+    st.error("Resposta de autenticação inesperada. Tente novamente ou contate o suporte.")
 
 else:
     # O resto do código da aplicação permanece inalterado
