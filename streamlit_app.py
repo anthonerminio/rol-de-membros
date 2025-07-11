@@ -168,7 +168,8 @@ if not st.session_state.get("authenticated", False):
         if token:
             try:
                 id_token = token.get("id_token")
-                user_info = jwt.decode(id_token, options={"verify_signature": False})
+                # ** A CORREÇÃO ESTÁ AQUI **
+                user_info = jwt.decode(id_token.encode('utf-8'), options={"verify_signature": False})
                 email = user_info.get("email", "")
                 if email in EMAILS_PERMITIDOS:
                     st.session_state.authenticated = True
@@ -234,16 +235,22 @@ else:
             with c5:
                 st.text_area("Observações", key="observacoes", height=80)
             if st.form_submit_button("💾 Salvar Membro"):
-                novo = {h: st.session_state.get(h.lower().replace(" (", "_").replace(")", "").replace(" ", "_"), "") for h in HEADERS}
+                novo = {h: st.session_state.get(h.lower().replace(" (", "_").replace(")", "").replace(" ", "_").replace("ç", "c").replace("ã", "a"), "") for h in HEADERS}
                 for k, v in novo.items():
                     if isinstance(v, str): novo[k] = v.strip().upper()
                 
                 datas = ["Data de Nascimento", "Data de Conversao", "Data de Admissao"]
-                for d in datas:
-                    if st.session_state.get(d.lower().replace(" ", "_")):
-                        novo[d] = st.session_state[d.lower().replace(" ", "_")].strftime('%d/%m/%Y')
+                for d_key in datas:
+                    ss_key = d_key.lower().replace(" ", "_")
+                    if st.session_state.get(ss_key):
+                        novo[d_key] = st.session_state[ss_key].strftime('%d/%m/%Y')
                     else:
-                        novo[d] = ""
+                        novo[d_key] = ""
+                
+                # Campos que não seguem o padrão de nome
+                novo["Sexo"] = st.session_state.sexo
+                novo["UF (Naturalidade)"] = st.session_state.uf_nat
+                novo["UF (Endereco)"] = st.session_state.uf_end
 
                 if novo["CPF"] and any(m["CPF"] == novo["CPF"] for m in st.session_state.membros):
                     st.error("Já existe um membro cadastrado com este CPF.")
