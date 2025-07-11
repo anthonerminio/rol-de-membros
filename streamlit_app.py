@@ -1,4 +1,4 @@
-# Versão Final Completa e Corrigida - v4.5.1
+# Versão Final e Corrigida - v4.5.2
 import streamlit as st
 import pandas as pd
 import gspread
@@ -189,40 +189,11 @@ def limpar_formulario():
     st.session_state.sexo = "M"
 
 def submeter_formulario():
-    novo = {
-        "Nome": str(st.session_state.get("nome", "")).strip().upper(),
-        "CPF": str(st.session_state.get("cpf", "")).strip().upper(),
-        "Sexo": st.session_state.get("sexo", ""),
-        "Estado Civil": st.session_state.get("estado_civil", ""),
-        "Profissão": str(st.session_state.get("profissao", "")).strip().upper(),
-        "Forma de Admissao": st.session_state.get("forma_admissao", ""),
-        "Data de Nascimento": st.session_state.data_nasc.strftime('%d/%m/%Y') if st.session_state.data_nasc else "",
-        "Nacionalidade": st.session_state.get("nacionalidade", ""),
-        "Naturalidade": str(st.session_state.get("naturalidade", "")).strip().upper(),
-        "UF (Naturalidade)": st.session_state.get("uf_nat", ""),
-        "Nome do Pai": str(st.session_state.get("nome_pai", "")).strip().upper(),
-        "Nome da Mae": str(st.session_state.get("nome_mae", "")).strip().upper(),
-        "Nome do(a) Cônjuge": str(st.session_state.get("conjuge", "")).strip().upper(),
-        "CEP": str(st.session_state.get("cep", "")).strip().upper(),
-        "Endereco": str(st.session_state.get("endereco", "")).strip().upper(),
-        "Bairro": str(st.session_state.get("bairro", "")).strip().upper(),
-        "Cidade": str(st.session_state.get("cidade", "")).strip().upper(),
-        "UF (Endereco)": st.session_state.get("uf_end", ""),
-        "Grau de Instrução": st.session_state.get("grau_ins", ""),
-        "Celular": str(st.session_state.get("celular", "")).strip().upper(),
-        "Data de Conversao": st.session_state.data_conv.strftime('%d/%m/%Y') if st.session_state.data_conv else "",
-        "Data de Admissao": st.session_state.data_adm.strftime('%d/%m/%Y') if st.session_state.data_adm else "",
-        "Status": st.session_state.get("status", ""),
-        "Observações": st.session_state.get("observacoes", "").strip()
-    }
-    
+    novo = {"Nome": str(st.session_state.get("nome", "")).strip().upper(), "CPF": str(st.session_state.get("cpf", "")).strip().upper(), "Sexo": st.session_state.get("sexo", ""), "Estado Civil": st.session_state.get("estado_civil", ""), "Profissão": str(st.session_state.get("profissao", "")).strip().upper(), "Forma de Admissao": st.session_state.get("forma_admissao", ""), "Data de Nascimento": st.session_state.data_nasc.strftime('%d/%m/%Y') if st.session_state.data_nasc else "", "Nacionalidade": st.session_state.get("nacionalidade", ""), "Naturalidade": str(st.session_state.get("naturalidade", "")).strip().upper(), "UF (Naturalidade)": st.session_state.get("uf_nat", ""), "Nome do Pai": str(st.session_state.get("nome_pai", "")).strip().upper(), "Nome da Mae": str(st.session_state.get("nome_mae", "")).strip().upper(), "Nome do(a) Cônjuge": str(st.session_state.get("conjuge", "")).strip().upper(), "CEP": str(st.session_state.get("cep", "")).strip().upper(), "Endereco": str(st.session_state.get("endereco", "")).strip().upper(), "Bairro": str(st.session_state.get("bairro", "")).strip().upper(), "Cidade": str(st.session_state.get("cidade", "")).strip().upper(), "UF (Endereco)": st.session_state.get("uf_end", ""), "Grau de Instrução": st.session_state.get("grau_ins", ""), "Celular": str(st.session_state.get("celular", "")).strip().upper(), "Data de Conversao": st.session_state.data_conv.strftime('%d/%m/%Y') if st.session_state.data_conv else "", "Data de Admissao": st.session_state.data_adm.strftime('%d/%m/%Y') if st.session_state.data_adm else "", "Status": st.session_state.get("status", ""), "Observações": st.session_state.get("observacoes", "").strip()}
     cpf_digitado = novo.get("CPF")
     is_duplicado = False
-    if cpf_digitado:
-        is_duplicado = any(str(m.get("CPF")) == cpf_digitado for m in st.session_state.membros)
-
-    if is_duplicado:
-        st.error("Já existe um membro cadastrado com este CPF.")
+    if cpf_digitado: is_duplicado = any(str(m.get("CPF")) == cpf_digitado for m in st.session_state.membros)
+    if is_duplicado: st.error("Já existe um membro cadastrado com este CPF.")
     else:
         st.session_state.membros.append(novo)
         salvar_membros(st.session_state.membros)
@@ -258,15 +229,14 @@ def init_state():
         st.session_state.confirmando_exclusao, st.session_state.chaves_para_excluir = False, set()
         st.session_state.confirmando_status, st.session_state.chaves_para_status, st.session_state.novo_status, st.session_state.obs_status = False, set(), "", ""
         for key in MAP_KEYS.values():
-            if key not in st.session_state:
-                st.session_state[key] = None if "data" in key else ""
-        if "sexo" not in st.session_state or not st.session_state.sexo:
-            st.session_state.sexo = "M"
+            if key not in st.session_state: st.session_state[key] = None if "data" in key else ""
+        if "sexo" not in st.session_state or not st.session_state.sexo: st.session_state.sexo = "M"
 
-def display_member_details(membro_dict):
+def display_member_details(membro_dict, context_prefix):
     def display_field(label, value):
         if value and str(value).strip():
             st.markdown(f"**{label}:** {value}")
+    
     st.markdown("##### 👤 Dados Pessoais")
     col1, col2 = st.columns(2)
     with col1:
@@ -310,12 +280,14 @@ def display_member_details(membro_dict):
     st.markdown("##### 📝 Observações")
     obs = membro_dict.get("Observações")
     if obs and obs.strip():
-        st.text_area("", value=obs, height=100, disabled=True, label_visibility="collapsed")
+        # CORREÇÃO: Adiciona uma chave única ao text_area
+        st.text_area("", value=obs, height=100, disabled=True, label_visibility="collapsed", key=f"obs_{context_prefix}")
 
 # --- C) Lógica Principal de Exibição ---
 init_state()
 
 if not st.session_state.get("authenticated", False):
+    # Lógica de Login
     _, col_login, _ = st.columns([0.5, 2, 0.5])
     with col_login:
         st.markdown("<h1 style='text-align: center;'>Fichário de Membros</h1>", unsafe_allow_html=True)
@@ -331,14 +303,14 @@ if not st.session_state.get("authenticated", False):
                         user_info = jwt.decode(id_token.encode(), options={"verify_signature": False})
                         email = user_info.get("email", "")
                         if email in EMAILS_PERMITIDOS:
-                            st.session_state.authenticated = True
-                            st.session_state.username = email
+                            st.session_state.authenticated = True; st.session_state.username = email
                             st.rerun()
                         else: st.error("Acesso não autorizado para este e-mail.")
                     else: st.error("Resposta de autenticação não continha uma identidade válida.")
                 else: st.error("Resposta de autenticação inválida recebida do Google.")
             except Exception as e: st.error(f"Ocorreu um erro ao processar o login: {e}")
 else:
+    # Lógica do App Principal
     _, col_content = st.columns([1, 1])
     with col_content:
         col_bem_vindo, col_logout = st.columns([3, 1])
@@ -346,14 +318,14 @@ else:
             st.markdown(f"<p style='text-align: right; padding-top: 8px;'>Bem-vindo(a), <strong>{st.session_state.get('username', '')}</strong>!</p>", unsafe_allow_html=True)
         with col_logout:
             if st.button("Sair"):
-                for key in list(st.session_state.keys()):
-                    del st.session_state[key]
+                for key in list(st.session_state.keys()): del st.session_state[key]
                 st.rerun()
     st.markdown("---")
     
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["Cadastro de Membros", "Lista de Membros", "Buscar e Excluir", "Aniversariantes do Mês", "Ficha Individual"])
 
     with tab1:
+        # Conteúdo da Aba 1 (Cadastro)
         st.header("Cadastro de Novos Membros")
         with st.form("form_membro"):
             st.subheader("Informações Pessoais")
@@ -442,7 +414,7 @@ else:
                 with st.container(border=True):
                     col_selecao, col_info = st.columns([1, 15])
                     with col_selecao:
-                        selecionado = st.checkbox("", key=f"select_{index}", label_visibility="collapsed")
+                        selecionado = st.checkbox("", key=f"select_list_{index}", label_visibility="collapsed")
                         if selecionado:
                             membros_selecionados_chaves.add((membro.get('Nome'), membro.get('Data de Nascimento')))
                     with col_info:
@@ -450,7 +422,7 @@ else:
                         st.subheader(f"{status_icon} {membro.get('Nome')}")
                         st.caption(f"CPF: {membro.get('CPF')} | Celular: {membro.get('Celular')}")
                     with st.expander("Ver Todos os Detalhes"):
-                        display_member_details(membro)
+                        display_member_details(membro, f"list_{index}")
             st.divider()
             sem_selecao = not bool(membros_selecionados_chaves)
             col1_act, col2_act, col3_act = st.columns([2,2,3])
@@ -534,10 +506,9 @@ else:
                             st.rerun()
                     with col2_del:
                         df_para_exportar = df_original[df_original.apply(lambda row: (row['Nome'], row['Data de Nascimento']) in chaves_selecionadas_excluir, axis=1)]
-                        df_excel = df_para_exportar.drop(columns=['Selecionar'], errors='ignore')
                         output_excel = BytesIO()
                         with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
-                            df_excel.to_excel(writer, index=False, sheet_name='Membros')
+                            df_para_exportar.to_excel(writer, index=False, sheet_name='Membros')
                         excel_data = output_excel.getvalue()
                         st.download_button(label="📄 Exportar Excel (.xlsx)", data=excel_data, file_name="membros_selecionados.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True, disabled=sem_selecao)
                     with col3_del:
@@ -575,27 +546,17 @@ else:
         st.header("Gerar Ficha Individual de Membro")
         if "membros" in st.session_state and st.session_state.membros:
             lista_nomes = [""] + sorted([m.get("Nome", "") for m in st.session_state.membros if m.get("Nome")])
-            membro_selecionado_nome = st.selectbox(
-                "Selecione ou digite o nome do membro para gerar a ficha:", 
-                options=lista_nomes,
-                placeholder="Selecione um membro...",
-                index=0
-            )
+            membro_selecionado_nome = st.selectbox("Selecione ou digite o nome do membro para gerar a ficha:", options=lista_nomes, placeholder="Selecione um membro...", index=0)
             if membro_selecionado_nome:
                 membro_dict = next((m for m in st.session_state.membros if m.get("Nome") == membro_selecionado_nome), None)
                 if membro_dict:
                     st.divider()
                     st.subheader(f"Ficha de: {membro_dict['Nome']}")
-                    display_member_details(membro_dict)
+                    display_member_details(membro_dict, "ficha_individual")
                     st.divider()
                     if st.button("📄 Exportar Ficha como PDF", key="export_ficha_pdf"):
                         with st.spinner("Gerando PDF da ficha..."):
                             pdf_data = criar_pdf_ficha(membro_dict)
-                            st.download_button(
-                                label="Clique para Baixar o PDF",
-                                data=pdf_data,
-                                file_name=f"ficha_{membro_dict['Nome'].replace(' ', '_').lower()}.pdf",
-                                mime="application/pdf"
-                            )
+                            st.download_button(label="Clique para Baixar o PDF", data=pdf_data, file_name=f"ficha_{membro_dict['Nome'].replace(' ', '_').lower()}.pdf", mime="application/pdf")
         else:
             st.warning("Não há membros cadastrados para gerar fichas.")
