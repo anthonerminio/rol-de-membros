@@ -9,6 +9,7 @@ from datetime import datetime, date
 from fpdf import FPDF
 from io import BytesIO
 from streamlit_oauth import OAuth2Component
+import jwt # <-- 1. NOVA IMPORTAÇÃO
 
 # --- 1) Configuração da página ---
 st.set_page_config(layout="wide", page_title="Fichário de Membros PIB Gaibu")
@@ -16,7 +17,7 @@ st.set_page_config(layout="wide", page_title="Fichário de Membros PIB Gaibu")
 # --- A) Parâmetros de Login Google (lendo dos Segredos) ---
 GOOGLE_CLIENT_ID = st.secrets["google_oauth"]["client_id"]
 GOOGLE_CLIENT_SECRET = st.secrets["google_oauth"]["client_secret"]
-GOOGLE_REDIRECT_URI = "https://pibgaibu.streamlit.app/"  # SUA URL PÚBLICA
+GOOGLE_REDIRECT_URI = "https://pibgaibu.streamlit.app"  # SUA URL PÚBLICA
 EMAILS_PERMITIDOS = {"antonio.esn01@gmail.com", "neto1999.legal@gmail.com", "adrielsoliveira1907@gmail.com"}
 
 oauth2 = OAuth2Component(
@@ -143,15 +144,24 @@ if not st.session_state.get("authenticated", False):
             scope="openid email profile"
         )
         if token:
-            userinfo = oauth2.get_user_info(token, "https://openidconnect.googleapis.com/v1/userinfo")
-            email = userinfo.get("email", "")
-            if email in EMAILS_PERMITIDOS:
-                st.session_state.authenticated = True
-                st.session_state.username = email
-                st.rerun()
-            else:
-                st.error("Acesso não autorizado para este e-mail.")
+            # 2. LÓGICA DE LOGIN ATUALIZADA
+            try:
+                id_token = token.get("id_token")
+                # Decodifica o token para obter as informações do usuário
+                user_info = jwt.decode(id_token, options={"verify_signature": False})
+                email = user_info.get("email", "")
+
+                if email in EMAILS_PERMITIDOS:
+                    st.session_state.authenticated = True
+                    st.session_state.username = email
+                    st.rerun()
+                else:
+                    st.error("Acesso não autorizado para este e-mail.")
+            except Exception as e:
+                st.error(f"Ocorreu um erro ao processar o login: {e}")
+
 else:
+    # O resto do código da aplicação permanece inalterado
     _, col_content = st.columns([1, 1])
     with col_content:
         col_bem_vindo, col_logout = st.columns([3, 1])
@@ -165,6 +175,7 @@ else:
     st.markdown("---")
     tab1, tab2, tab3 = st.tabs(["Cadastro de Membros", "Lista de Membros", "Buscar e Excluir"])
 
+    # ... (todo o código das abas permanece o mesmo)
     with tab1:
         st.header("Cadastro de Novos Membros")
         with st.form("form_membro", clear_on_submit=True):
@@ -234,14 +245,7 @@ else:
         with col_busca1:
             termo = st.text_input("Buscar por Nome ou CPF", key="busca_termo").strip().upper()
         with col_busca2:
-            data_filtro = st.date_input(
-                "Buscar por Data de Nascimento", 
-                value=None, 
-                key="busca_data",
-                min_value=date(1910, 1, 1),
-                max_value=date(2030, 12, 31),
-                format="DD/MM/YYYY"
-            )
+            data_filtro = st.date_input("Buscar por Data de Nascimento", value=None, key="busca_data", min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY")
         df_original = pd.DataFrame(st.session_state.membros)
         df_filtrado = df_original.copy()
         if termo:
