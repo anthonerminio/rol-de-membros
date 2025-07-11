@@ -1,4 +1,4 @@
-# Versão Final Completa - v4.1.1
+# Versão Final Completa - v4.2
 import streamlit as st
 import pandas as pd
 import gspread
@@ -11,11 +11,9 @@ from fpdf import FPDF
 from io import BytesIO
 from streamlit_oauth import OAuth2Component
 import jwt
-from PIL import Image, ImageDraw, ImageFont
-import matplotlib.font_manager
 
 # --- 1) Configuração da página ---
-st.set_page_config(layout="wide", page_title="Fichário de Membros v4.1")
+st.set_page_config(layout="wide", page_title="Fichário de Membros v4.2")
 
 # --- A) Parâmetros de Login Google ---
 try:
@@ -35,8 +33,8 @@ except (KeyError, FileNotFoundError):
     st.stop()
 
 
-# --- Funções Auxiliares ---
-def criar_pdf(df):
+# --- Funções Auxiliares de Exportação ---
+def criar_pdf_lista(df):
     pdf = FPDF(orientation='L', unit='mm', format='A4')
     pdf.add_page()
     pdf.set_font('helvetica', 'B', 8)
@@ -73,71 +71,70 @@ def criar_pdf_aniversariantes(df, mes_nome):
         pdf.cell(60, 10, data_nasc, 1, 1, 'C')
     return bytes(pdf.output(dest='S'))
 
-def criar_imagem_ficha(membro):
-    largura, altura = 2480, 1748
-    img = Image.new('RGB', (largura, altura), color=(255, 255, 255))
-    draw = ImageDraw.Draw(img)
-    
-    try:
-        caminho_fonte = matplotlib.font_manager.findfont('DejaVu Sans')
-        fonte_titulo_grande = ImageFont.truetype(caminho_fonte, 90)
-        fonte_subtitulo = ImageFont.truetype(caminho_fonte, 60)
-        fonte_label = ImageFont.truetype(caminho_fonte, 45)
-        fonte_valor = ImageFont.truetype(caminho_fonte, 45)
-    except:
-        fonte_titulo_grande, fonte_subtitulo, fonte_label, fonte_valor = [ImageFont.load_default()]*4
+def criar_pdf_ficha(membro):
+    pdf = FPDF(orientation='P', unit='mm', format='A4')
+    pdf.add_page()
+    pdf.set_font('helvetica', 'B', 16)
+    pdf.cell(0, 10, 'Ficha Individual de Membro - PIB Gaibu', 0, 1, 'C')
+    pdf.set_font('helvetica', 'B', 14)
+    pdf.cell(0, 10, membro.get("Nome", ""), 0, 1, 'C')
+    pdf.ln(5)
 
-    # Cabeçalho
-    draw.rectangle([(0, 0), (largura, 180)], fill=(14, 17, 23))
-    draw.text((80, 50), "Ficha Individual de Membro - PIB Gaibu", fill='white', font=fonte_titulo_grande)
-
-    def draw_field(x, y, label, value):
+    def draw_field(label, value):
         if value and str(value).strip():
-            draw.text((x, y), label, fill=(100, 116, 139), font=fonte_label)
-            draw.text((x + 500, y), str(value), fill='black', font=fonte_valor)
-            return 85
-        return 0
+            pdf.set_font('helvetica', 'B', 10)
+            pdf.cell(50, 7, f"{label}:", 0, 0)
+            pdf.set_font('helvetica', '', 10)
+            pdf.multi_cell(0, 7, str(value), 0, 1)
 
-    y_pos1, y_pos2 = 280, 280
-    x_pos1, x_pos2 = 100, largura / 2 + 100
-
-    # Coluna 1
-    draw.text((x_pos1, y_pos1), "👤 Dados Pessoais", fill='black', font=fonte_subtitulo)
-    y_pos1 += 100
-    y_pos1 += draw_field(x_pos1, y_pos1, "Nome:", membro.get("Nome"))
-    y_pos1 += draw_field(x_pos1, y_pos1, "CPF:", membro.get("CPF"))
-    y_pos1 += draw_field(x_pos1, y_pos1, "Data de Nascimento:", membro.get("Data de Nascimento"))
-    y_pos1 += draw_field(x_pos1, y_pos1, "Sexo:", membro.get("Sexo"))
-    y_pos1 += draw_field(x_pos1, y_pos1, "Estado Civil:", membro.get("Estado Civil"))
-    y_pos1 += draw_field(x_pos1, y_pos1, "Profissão:", membro.get("Profissão"))
-    y_pos1 += draw_field(x_pos1, y_pos1, "Celular:", membro.get("Celular"))
-    
-    # Coluna 2
-    draw.text((x_pos2, y_pos2), "👨‍👩‍👧 Filiação e Origem", fill='black', font=fonte_subtitulo)
-    y_pos2 += 100
-    y_pos2 += draw_field(x_pos2, y_pos2, "Nome do Pai:", membro.get("Nome do Pai"))
-    y_pos2 += draw_field(x_pos2, y_pos2, "Nome da Mãe:", membro.get("Nome da Mae"))
-    y_pos2 += draw_field(x_pos2, y_pos2, "Cônjuge:", membro.get("Nome do(a) Cônjuge"))
-    y_pos2 += draw_field(x_pos2, y_pos2, "Nacionalidade:", membro.get("Nacionalidade"))
-    y_pos2 += draw_field(x_pos2, y_pos2, "Naturalidade:", membro.get("Naturalidade"))
-    y_pos2 += draw_field(x_pos2, y_pos2, "UF (Naturalidade):", membro.get("UF (Naturalidade)"))
+    # Seção Dados Pessoais
+    pdf.set_font('helvetica', 'B', 12)
+    pdf.cell(0, 10, "👤 Dados Pessoais", 0, 1, 'L')
+    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+    pdf.ln(2)
+    draw_field("CPF", membro.get("CPF"))
+    draw_field("Data de Nascimento", membro.get("Data de Nascimento"))
+    draw_field("Sexo", membro.get("Sexo"))
+    draw_field("Estado Civil", membro.get("Estado Civil"))
+    draw_field("Profissão", membro.get("Profissão"))
+    draw_field("Celular", membro.get("Celular"))
+    pdf.ln(5)
 
     # Seção Endereço
-    y_final = max(y_pos1, y_pos2) + 40
-    draw.line([(80, y_final), (largura - 80, y_final)], fill='lightgray', width=3)
-    y_final += 40
-    draw.text((x_pos1, y_final), "🏠 Endereço", fill='black', font=fonte_subtitulo)
-    y_final += 100
-    y_final += draw_field(x_pos1, y_final, "CEP:", membro.get("CEP"))
-    y_final += draw_field(x_pos1, y_final, "Endereço:", membro.get("Endereco"))
-    y_final += draw_field(x_pos1, y_final, "Bairro:", membro.get("Bairro"))
-    y_final += draw_field(x_pos1, y_final, "Cidade:", membro.get("Cidade"))
-    y_final += draw_field(x_pos1, y_final, "UF:", membro.get("UF (Endereco)"))
+    pdf.set_font('helvetica', 'B', 12)
+    pdf.cell(0, 10, "🏠 Endereço", 0, 1, 'L')
+    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+    pdf.ln(2)
+    draw_field("CEP", membro.get("CEP"))
+    draw_field("Endereço", membro.get("Endereco"))
+    draw_field("Bairro", membro.get("Bairro"))
+    draw_field("Cidade", membro.get("Cidade"))
+    draw_field("UF", membro.get("UF (Endereco)"))
+    pdf.ln(5)
+    
+    # Seção Filiação e Origem
+    pdf.set_font('helvetica', 'B', 12)
+    pdf.cell(0, 10, "👨‍👩‍👧 Filiação e Origem", 0, 1, 'L')
+    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+    pdf.ln(2)
+    draw_field("Nome do Pai", membro.get("Nome do Pai"))
+    draw_field("Nome da Mãe", membro.get("Nome da Mae"))
+    draw_field("Cônjuge", membro.get("Nome do(a) Cônjuge"))
+    draw_field("Nacionalidade", membro.get("Nacionalidade"))
+    draw_field("Naturalidade", membro.get("Naturalidade"))
+    pdf.ln(5)
 
-    buffer = BytesIO()
-    img.save(buffer, format='PNG')
-    return buffer.getvalue()
-
+    # Seção Dados Eclesiásticos
+    pdf.set_font('helvetica', 'B', 12)
+    pdf.cell(0, 10, "⛪ Dados Eclesiásticos", 0, 1, 'L')
+    pdf.line(10, pdf.get_y(), 200, pdf.get_y())
+    pdf.ln(2)
+    draw_field("Status", membro.get("Status"))
+    draw_field("Forma de Admissão", membro.get("Forma de Admissao"))
+    draw_field("Data de Admissão", membro.get("Data de Admissao"))
+    draw_field("Data de Conversão", membro.get("Data de Conversao"))
+    
+    return bytes(pdf.output())
 
 # --- Funções de Dados (Google Sheets) ---
 NOME_PLANILHA = "Fichario_Membros_PIB_Gaibu"
@@ -537,7 +534,7 @@ else:
                         st.download_button(label="📄 Exportar Excel (.xlsx)", data=excel_data, file_name="membros_selecionados.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True, disabled=sem_selecao)
                     with col3_del:
                         df_pdf = registros_selecionados.drop(columns=['Selecionar'])
-                        pdf_data = criar_pdf(df_pdf)
+                        pdf_data = criar_pdf_lista(df_pdf)
                         st.download_button(label="📕 Exportar PDF (.pdf)", data=pdf_data, file_name="membros_selecionados.pdf", mime="application/pdf", use_container_width=True, disabled=sem_selecao)
 
     with tab4:
@@ -570,7 +567,11 @@ else:
         st.header("Gerar Ficha Individual de Membro")
         if "membros" in st.session_state and st.session_state.membros:
             lista_nomes = ["Selecione um membro..."] + sorted([m.get("Nome", "") for m in st.session_state.membros])
-            membro_selecionado_nome = st.selectbox("Selecione um membro para gerar a ficha:", options=lista_nomes, index=0)
+            membro_selecionado_nome = st.selectbox(
+                "Selecione ou digite o nome do membro para gerar a ficha:", 
+                options=lista_nomes, 
+                index=0
+            )
             if membro_selecionado_nome and membro_selecionado_nome != "Selecione um membro...":
                 membro_dict = next((m for m in st.session_state.membros if m.get("Nome") == membro_selecionado_nome), None)
                 if membro_dict:
@@ -579,43 +580,50 @@ else:
                     
                     def display_field(label, value):
                         if value and str(value).strip():
-                            st.markdown(f"**{label}:**")
-                            st.markdown(f"> {value}")
-                    
+                            st.markdown(f"**{label}:** {value}")
+
                     # Layout da Ficha
                     st.markdown("##### 👤 Dados Pessoais e Contato")
-                    c1, c2 = st.columns(2)
-                    with c1:
+                    col1, col2 = st.columns(2)
+                    with col1:
                         display_field("CPF", membro_dict.get("CPF"))
                         display_field("Sexo", membro_dict.get("Sexo"))
                         display_field("Estado Civil", membro_dict.get("Estado Civil"))
-                    with c2:
+                    with col2:
                         display_field("Data de Nascimento", membro_dict.get("Data de Nascimento"))
                         display_field("Celular", membro_dict.get("Celular"))
                         display_field("Profissão", membro_dict.get("Profissão"))
 
                     st.divider()
                     st.markdown("##### ⛪ Dados Eclesiásticos")
-                    c3, c4, c5 = st.columns(3)
+                    col3, col4 = st.columns(2)
                     with c3:
-                        display_field("Forma de Admissão", membro_dict.get("Forma de Admissao"))
-                        display_field("Data de Admissão", membro_dict.get("Data de Admissao"))
-                    with c4:
                         display_field("Status", membro_dict.get("Status"))
+                        display_field("Forma de Admissão", membro_dict.get("Forma de Admissao"))
+                    with c4:
+                        display_field("Data de Admissão", membro_dict.get("Data de Admissao"))
                         display_field("Data de Conversão", membro_dict.get("Data de Conversao"))
-                    with c5:
-                        display_field("Grau de Instrução", membro_dict.get("Grau de Instrução"))
 
                     st.divider()
-                    
-                    if st.button("🖼️ Exportar Ficha como Imagem (.png)", key="export_ficha_img"):
-                        with st.spinner("Gerando imagem da ficha..."):
-                            imagem_data = criar_imagem_ficha(membro_dict)
+                    st.markdown("##### 🏠 Endereço")
+                    col5, col6 = st.columns(2)
+                    with col5:
+                        display_field("CEP", membro_dict.get("CEP"))
+                        display_field("Endereço", membro_dict.get("Endereco"))
+                    with col6:
+                        display_field("Bairro", membro_dict.get("Bairro"))
+                        display_field("Cidade", membro_dict.get("Cidade"))
+                        display_field("UF", membro_dict.get("UF (Endereco)"))
+                    st.divider()
+
+                    if st.button("📄 Exportar Ficha como PDF", key="export_ficha_pdf"):
+                        with st.spinner("Gerando PDF da ficha..."):
+                            pdf_data = criar_pdf_ficha(membro_dict)
                             st.download_button(
-                                label="Clique para Baixar a Imagem",
-                                data=imagem_data,
-                                file_name=f"ficha_{membro_dict['Nome'].replace(' ', '_').lower()}.png",
-                                mime="image/png"
+                                label="Clique para Baixar o PDF",
+                                data=pdf_data,
+                                file_name=f"ficha_{membro_dict['Nome'].replace(' ', '_').lower()}.pdf",
+                                mime="application/pdf"
                             )
         else:
             st.warning("Não há membros cadastrados para gerar fichas.")
