@@ -1,8 +1,8 @@
 streamlit
 pandas
 gspread
-openpyxl
-streamlit-oauth
-requests
 fpdf2
+openpyxl
+requests
 PyJWT
+streamlit-oauth
