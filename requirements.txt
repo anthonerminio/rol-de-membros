@@ -1,1 +1,5 @@
-streamlit
+streamlit>=1.30.0 # Garante uma versão moderna de Streamlit
+pandas
+gspread
+oauth2client
+requests
