@@ -1,4 +1,4 @@
-# Versão Final e Corrigida - v5.4
+# Versão Final e Corrigida - v5.5
 import streamlit as st
 import pandas as pd
 import gspread
@@ -13,7 +13,7 @@ from streamlit_oauth import OAuth2Component
 import jwt
 
 # --- 1) Configuração da página ---
-st.set_page_config(layout="wide", page_title="Fichário de Membros v5.4")
+st.set_page_config(layout="wide", page_title="Fichário de Membros v5.5")
 
 # --- A) Parâmetros de Login Google ---
 try:
@@ -55,14 +55,13 @@ def criar_pdf_lista(df):
         pdf.ln(line_height)
     return bytes(pdf.output())
 
-# <-- ATUALIZAÇÃO: PDF de aniversariantes com layout fluido e data completa ao lado do nome.
+# <-- ATUALIZAÇÃO: PDF de aniversariantes agora mostra apenas o dia (DD).
 def criar_pdf_aniversariantes_com_status(ativos_df, inativos_df, outros_df, mes_nome):
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.add_page()
     try:
         pdf.add_font("DejaVu", "", "fonts/DejaVuSans.ttf", uni=True)
     except RuntimeError:
-        # Fallback para fonte padrão caso a DejaVu não seja encontrada
         pdf.set_font("Arial", size=16)
 
     pdf.set_font("DejaVu", size=16)
@@ -79,8 +78,8 @@ def criar_pdf_aniversariantes_com_status(ativos_df, inativos_df, outros_df, mes_
             for _, row in df_section.iterrows():
                 nome_completo = str(row.get('Nome Completo', ''))
                 data_nasc = str(row.get('Data de Nascimento Completa', ''))
-                # Layout limpo: Nome - Data de Nascimento
-                pdf.cell(0, 8, f"{nome_completo}  -  {data_nasc}", 0, 1, 'L')
+                dia = data_nasc.split('/')[0] if '/' in data_nasc else data_nasc
+                pdf.cell(0, 8, f"{nome_completo}  -  Dia {dia}", 0, 1, 'L')
             pdf.ln(8)
 
     draw_section("🟢 Aniversariantes Ativos", ativos_df)
@@ -89,6 +88,7 @@ def criar_pdf_aniversariantes_com_status(ativos_df, inativos_df, outros_df, mes_
 
     return bytes(pdf.output())
 
+# <-- ATUALIZAÇÃO: Função da ficha individual mantida, já incluindo as observações no final.
 def criar_pdf_ficha(membro):
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.add_page()
@@ -332,7 +332,6 @@ else:
 
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["Cadastro", "Lista de Membros", "Busca e Ações", "Aniversariantes", "Ficha Individual"])
 
-    # --- Aba 1: Cadastro (Sem alterações) ---
     with tab1:
         st.header("Cadastro de Novos Membros")
         with st.form("form_membro"):
@@ -368,7 +367,6 @@ else:
             with c13: st.text_area("Observações", key="observacoes")
             st.markdown("---"); st.form_submit_button("💾 Salvar Membro", on_click=submeter_formulario)
 
-    # --- Aba 2: Lista de Membros (Lógica de seleção otimizada para performance percebida) ---
     with tab2:
         st.header("Visão Geral da Membresia")
         if "membros" in st.session_state and st.session_state.membros:
@@ -382,8 +380,26 @@ else:
             st.subheader("Ações para Itens Selecionados na Lista")
             col_ativo, col_inativo = st.columns(2)
             
-            # A lógica de iterar e mostrar os checkboxes permanece, pois é a forma padrão do Streamlit.
-            # A performance é mantida ao realizar as ações (salvar, etc.) somente no callback do botão.
+            with col_ativo:
+                if st.button("🟢 Marcar como Ativos", use_container_width=True, disabled=not st.session_state.get("selecao_lista"), key="tab2_ativo"):
+                    st.session_state.chaves_para_status = st.session_state.selecao_lista
+                    st.session_state.novo_status = "ATIVO"; st.session_state.confirmando_status = True
+            with col_inativo:
+                if st.button("🔴 Marcar como Inativos", use_container_width=True, disabled=not st.session_state.get("selecao_lista"), key="tab2_inativo"):
+                    st.session_state.chaves_para_status = st.session_state.selecao_lista
+                    st.session_state.novo_status = "INATIVO"; st.session_state.confirmando_status = True
+
+            # <-- ATUALIZAÇÃO: Diálogo de confirmação posicionado logo abaixo dos botões de ação.
+            if st.session_state.get('confirmando_status', False):
+                novo_status = st.session_state.get('novo_status', 'DESCONHECIDO'); cor = "green" if novo_status == "ATIVO" else "red"
+                st.markdown(f"Você está prestes a alterar o status de **{len(st.session_state.chaves_para_status)}** membro(s) para <span style='color:{cor}; font-weight:bold;'>{novo_status}</span>.", unsafe_allow_html=True)
+                st.text_area("Adicionar Observação (opcional):", key="obs_status")
+                col_confirma, col_cancela = st.columns(2)
+                with col_confirma: st.button("Sim, confirmar alteração", use_container_width=True, type="primary", on_click=confirmar_mudanca_status)
+                with col_cancela: st.button("Não, cancelar", use_container_width=True, on_click=cancelar_mudanca_status)
+            
+            st.divider()
+
             for index, membro in df_membros_tab2.iterrows():
                 with st.container(border=True):
                     col_selecao, col_info = st.columns([1, 15])
@@ -399,30 +415,10 @@ else:
                         with st.expander("Ver Todos os Detalhes"): display_member_details(membro, f"list_{index}")
             
             st.session_state.selecao_lista = selecao_atual
-            sem_selecao_lista = not st.session_state.selecao_lista
 
-            with col_ativo:
-                if st.button("🟢 Marcar como Ativos", use_container_width=True, disabled=sem_selecao_lista, key="tab2_ativo"):
-                    st.session_state.chaves_para_status = st.session_state.selecao_lista
-                    st.session_state.novo_status = "ATIVO"; st.session_state.confirmando_status = True; st.rerun()
-            with col_inativo:
-                if st.button("🔴 Marcar como Inativos", use_container_width=True, disabled=sem_selecao_lista, key="tab2_inativo"):
-                    st.session_state.chaves_para_status = st.session_state.selecao_lista
-                    st.session_state.novo_status = "INATIVO"; st.session_state.confirmando_status = True; st.rerun()
-            
-            st.divider()
-
-            if st.session_state.get('confirmando_status', False):
-                novo_status = st.session_state.get('novo_status', 'DESCONHECIDO'); cor = "green" if novo_status == "ATIVO" else "red"
-                st.markdown(f"Você está prestes a alterar o status de **{len(st.session_state.chaves_para_status)}** membro(s) para <span style='color:{cor}; font-weight:bold;'>{novo_status}</span>.", unsafe_allow_html=True)
-                st.text_area("Adicionar Observação (opcional):", key="obs_status")
-                col_confirma, col_cancela = st.columns(2)
-                with col_confirma: st.button("Sim, confirmar alteração", use_container_width=True, type="primary", on_click=confirmar_mudanca_status)
-                with col_cancela: st.button("Não, cancelar", use_container_width=True, on_click=cancelar_mudanca_status)
         else:
             st.info("Nenhum membro cadastrado.")
 
-    # --- Aba 3: Busca e Ações (Layout alterado e lógica de seleção mantida) ---
     with tab3:
         st.header("Buscar e Realizar Ações")
         col_busca1, col_busca2 = st.columns(2)
@@ -441,20 +437,16 @@ else:
                 data_filtro_str = data_filtro.strftime('%d/%m/%Y'); df_filtrado = df_filtrado[df_filtrado['Data de Nascimento'] == data_filtro_str]
 
             st.divider()
-
-            # <-- ATUALIZAÇÃO: Seção de ações movida para antes da lista de resultados.
-            st.subheader("Ações para Itens Selecionados na Busca")
             
-            # A seleção será computada após a renderização da lista, mas os botões já são declarados aqui.
+            st.subheader("Ações para Itens Selecionados na Busca")
             sem_selecao_busca = not st.session_state.get("selecao_busca", set())
             
             col_excluir, col_excel, col_pdf = st.columns(3)
             with col_excluir:
                 if st.button("🗑️ Excluir Selecionados", use_container_width=True, disabled=sem_selecao_busca, key="tab3_excluir"):
                     st.session_state.chaves_para_excluir = st.session_state.selecao_busca
-                    st.session_state.confirmando_exclusao = True; st.rerun()
-
-            # Prepara os dados para download (será vazio se nada for selecionado)
+                    st.session_state.confirmando_exclusao = True
+            
             if not df_original.empty and st.session_state.get("selecao_busca"):
                 df_para_exportar = df_original[df_original.apply(lambda row: (row['Nome'], row['Data de Nascimento']) in st.session_state.selecao_busca, axis=1)].reindex(columns=HEADERS)
                 output_excel = BytesIO();
@@ -468,9 +460,25 @@ else:
                 st.download_button("📄 Exportar Excel", excel_data, "membros_selecionados.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True, disabled=sem_selecao_busca)
             with col_pdf:
                 st.download_button("📕 Exportar PDF", pdf_data, "membros_selecionados.pdf", "application/pdf", use_container_width=True, disabled=sem_selecao_busca)
-            
-            st.markdown("---") # Separador visual
 
+            # <-- ATUALIZAÇÃO: Diálogo de confirmação de exclusão posicionado logo abaixo dos botões de ação.
+            if st.session_state.get('confirmando_exclusao', False):
+                st.warning(f"Deseja realmente deletar os {len(st.session_state.chaves_para_excluir)} itens selecionados?")
+                c1, c2 = st.columns(2)
+                if c1.button("Sim, excluir definitivamente", use_container_width=True, type="primary"):
+                    membros_atualizados = [m for m in st.session_state.membros if (m.get('Nome'), m.get('Data de Nascimento')) not in st.session_state.chaves_para_excluir]
+                    st.session_state.membros = membros_atualizados
+                    salvar_membros(membros_atualizados)
+                    st.session_state.confirmando_exclusao, st.session_state.chaves_para_excluir = False, set()
+                    for key in st.session_state.keys():
+                        if key.startswith("select_search_"):
+                            st.session_state[key] = False
+                    st.success("Registros excluídos!"); st.rerun()
+                if c2.button("Não, voltar", use_container_width=True):
+                    st.session_state.confirmando_exclusao, st.session_state.chaves_para_excluir = False, set(); st.rerun()
+
+            st.markdown("---")
+            
             selecao_busca_atual = set()
             if df_filtrado.empty and (termo or data_filtro):
                 st.warning("Nenhum membro encontrado com os critérios de busca especificados.")
@@ -487,25 +495,8 @@ else:
                             st.subheader(f"{status_icon} {membro.get('Nome')}")
                             st.caption(f"CPF: {membro.get('CPF')} | Data de Admissão: {membro.get('Data de Admissao')}")
             
-            # Atualiza o estado da seleção para os botões poderem reagir no próximo rerun
             st.session_state.selecao_busca = selecao_busca_atual
 
-            if st.session_state.get('confirmando_exclusao', False):
-                st.warning(f"Deseja realmente deletar os {len(st.session_state.chaves_para_excluir)} itens selecionados?")
-                c1, c2 = st.columns(2)
-                if c1.button("Sim, excluir definitivamente", use_container_width=True, type="primary"):
-                    membros_atualizados = [m for m in st.session_state.membros if (m.get('Nome'), m.get('Data de Nascimento')) not in st.session_state.chaves_para_excluir]
-                    st.session_state.membros = membros_atualizados
-                    salvar_membros(membros_atualizados)
-                    st.session_state.confirmando_exclusao, st.session_state.chaves_para_excluir = False, set()
-                    for key in st.session_state.keys():
-                        if key.startswith("select_search_"):
-                            st.session_state[key] = False
-                    st.success("Registros excluídos!"); st.rerun()
-                if c2.button("Não, voltar", use_container_width=True):
-                    st.session_state.confirmando_exclusao, st.session_state.chaves_para_excluir = False, set(); st.rerun()
-
-    # --- Aba 4: Aniversariantes (Layout alterado) ---
     with tab4:
         st.header("Aniversariantes do Mês")
         if "membros" in st.session_state and st.session_state.membros:
@@ -513,14 +504,14 @@ else:
             df_membros['Data de Nascimento_dt'] = pd.to_datetime(df_membros['Data de Nascimento'], format='%d/%m/%Y', errors='coerce')
             df_membros.dropna(subset=['Data de Nascimento_dt'], inplace=True)
             df_membros['Mês'] = df_membros['Data de Nascimento_dt'].dt.month
+            df_membros['Dia'] = df_membros['Data de Nascimento_dt'].dt.day
             
             meses_pt = {"Janeiro": 1, "Fevereiro": 2, "Março": 3, "Abril": 4, "Maio": 5, "Junho": 6, "Julho": 7, "Agosto": 8, "Setembro": 9, "Outubro": 10, "Novembro": 11, "Dezembro": 12}
             mes_selecionado = st.selectbox("Escolha o mês para ver a lista de aniversariantes:", options=list(meses_pt.keys()), index=datetime.now().month - 1, placeholder="Selecione um mês...")
             
             if mes_selecionado:
                 num_mes = meses_pt[mes_selecionado]
-                # Ordena pelo dia do nascimento
-                aniversariantes_df = df_membros[df_membros['Mês'] == num_mes].sort_values(by='Data de Nascimento_dt', key=lambda x: x.dt.day)
+                aniversariantes_df = df_membros[df_membros['Mês'] == num_mes].sort_values(by='Dia')
 
                 if aniversariantes_df.empty:
                     st.info("Nenhum aniversariante encontrado para este mês.")
@@ -533,14 +524,13 @@ else:
                     
                     df_display_cols = {'Nome': 'Nome Completo', 'Data de Nascimento': 'Data de Nascimento Completa'}
 
-                    # <-- ATUALIZAÇÃO: Layout dos cards de aniversariantes.
+                    # <-- ATUALIZAÇÃO: Layout para mostrar apenas o DIA (DD) do aniversário.
                     def display_birthday_section(title, df_section, icon):
                         if not df_section.empty:
                             st.markdown(f"#### {icon} {title}")
                             for _, row in df_section.iterrows():
                                 with st.container(border=True):
-                                    # Mostra o nome e a data de nascimento completa na mesma linha
-                                    st.markdown(f"**{row['Nome']}** - {row['Data de Nascimento']}")
+                                    st.markdown(f"**{row['Nome']}** - Dia {row['Dia']}")
                             st.markdown("<br>", unsafe_allow_html=True)
 
                     display_birthday_section("Aniversariantes Ativos", ativos_df, "🟢")
@@ -558,7 +548,6 @@ else:
         else:
             st.info("Não há membros cadastrados para gerar a lista de aniversariantes.")
 
-    # --- Aba 5: Ficha Individual (Sem alterações) ---
     with tab5:
         st.header("Gerar Ficha Individual de Membro")
         if "membros" in st.session_state and st.session_state.membros:
