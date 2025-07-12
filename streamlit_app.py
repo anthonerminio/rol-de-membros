@@ -1,4 +1,4 @@
-# Versão Final e Corrigida - v6.0 com Aba de Edição
+# Versão Final e Corrigida - v6.1 com Status na Aba de Edição
 import streamlit as st
 import pandas as pd
 import gspread
@@ -13,7 +13,7 @@ from streamlit_oauth import OAuth2Component
 import jwt
 
 # --- 1) Configuração da página ---
-st.set_page_config(layout="wide", page_title="Fichário de Membros v6.0")
+st.set_page_config(layout="wide", page_title="Fichário de Membros v6.1")
 
 # --- A) Parâmetros de Login Google ---
 try:
@@ -35,9 +35,8 @@ except (KeyError, FileNotFoundError):
 
 # --- Funções Auxiliares de Exportação ---
 
-# <-- ATUALIZAÇÃO: Layout do PDF de exportação em massa foi redesenhado para não parecer uma planilha.
 def criar_pdf_exportacao_busca(df):
-    pdf = FPDF(orientation='P', unit='mm', format='A4') # Alterado para Retrato
+    pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.add_page()
     pdf.add_font("DejaVu", "", "fonts/DejaVuSans.ttf", uni=True)
     
@@ -45,13 +44,10 @@ def criar_pdf_exportacao_busca(df):
     pdf.cell(0, 10, "Relatório de Membros Selecionados", 0, 1, 'C')
     pdf.ln(10)
 
-    # Loop para criar um "card" para cada membro
     for _, row in df.iterrows():
-        # Nome do membro como título
         pdf.set_font("DejaVu", size=12)
         pdf.cell(0, 8, str(row["Nome"]), 0, 1, 'L')
         
-        # Detalhes do membro
         pdf.set_font("DejaVu", size=10)
         pdf.cell(0, 6, f"  - Data de Nascimento: {row['Data de Nascimento']}", 0, 1, 'L')
         pdf.cell(0, 6, f"  - Telefone: {row['Celular']}", 0, 1, 'L')
@@ -59,7 +55,6 @@ def criar_pdf_exportacao_busca(df):
         pdf.cell(0, 6, f"  - Data de Admissão: {row['Data de Admissao']}", 0, 1, 'L')
         pdf.cell(0, 6, f"  - Data de Conversão: {row['Data de Conversao']}", 0, 1, 'L')
         
-        # Linha separadora entre os membros
         pdf.ln(5)
         pdf.line(pdf.get_x(), pdf.get_y(), pdf.w - pdf.r_margin, pdf.get_y())
         pdf.ln(5)
@@ -628,7 +623,7 @@ else:
         else:
             st.warning("Não há membros cadastrados para gerar fichas.")
 
-    # --- NOVA ABA DE EDIÇÃO ---
+    # --- ABA DE EDIÇÃO ATUALIZADA ---
     with tab6:
         st.header("Editar Dados do Membro")
 
@@ -660,31 +655,36 @@ else:
 
             st.divider()
             # Cabeçalho da lista
-            col_h1, col_h2, col_h3, col_h4, col_h5, col_h6 = st.columns([1, 4, 2, 2, 2, 2])
-            col_h1.markdown("**Editar**")
-            col_h2.markdown("**Nome Completo**")
-            col_h3.markdown("**CPF**")
-            col_h4.markdown("**Nascimento**")
-            col_h5.markdown("**Admissão**")
-            col_h6.markdown("**Forma**")
+            col_h1, col_h2, col_h3, col_h4, col_h5, col_h6 = st.columns([1, 5, 2, 2, 2, 2])
+            with col_h1: st.markdown("**Editar**")
+            with col_h2: st.markdown("**Nome Completo**")
+            with col_h3: st.markdown("**CPF**")
+            with col_h4: st.markdown("**Nascimento**")
+            with col_h5: st.markdown("**Admissão**")
+            with col_h6: st.markdown("**Forma**")
 
             # Lista de membros para edição
             for index, membro in df_membros_edicao.iterrows():
-                col_edit, col_nome, col_cpf, col_nasc, col_adm, col_forma = st.columns([1, 4, 2, 2, 2, 2])
+                col_edit, col_nome, col_cpf, col_nasc, col_adm, col_forma = st.columns([1, 5, 2, 2, 2, 2])
                 with col_edit:
                     if st.button("✏️", key=f"edit_btn_{index}", help=f"Editar {membro.get('Nome')}"):
                         st.session_state.editing_member_index = index
                         st.session_state.show_edit_modal = True
                         st.rerun()
-                col_nome.write(membro.get("Nome", ""))
-                col_cpf.write(membro.get("CPF", ""))
-                col_nasc.write(membro.get("Data de Nascimento", ""))
-                col_adm.write(membro.get("Data de Admissao", ""))
-                col_forma.write(membro.get("Forma de Admissao", ""))
+                
+                with col_nome:
+                    # <<< MUDANÇA AQUI: Adicionado ícone de status antes do nome
+                    status_icon = '🟢' if str(membro.get('Status', '')).upper() == 'ATIVO' else '🔴' if str(membro.get('Status', '')).upper() == 'INATIVO' else '⚪'
+                    st.write(f"{status_icon} {membro.get('Nome', '')}")
+
+                with col_cpf: st.write(membro.get("CPF", ""))
+                with col_nasc: st.write(membro.get("Data de Nascimento", ""))
+                with col_adm: st.write(membro.get("Data de Admissao", ""))
+                with col_forma: st.write(membro.get("Forma de Admissao", ""))
         else:
             st.info("Nenhum membro encontrado com os filtros aplicados.")
 
-        # Modal de Edição
+        # Modal de Edição (Pop-up)
         if st.session_state.get("show_edit_modal", False):
             membro_para_editar = st.session_state.membros[st.session_state.editing_member_index]
             
@@ -692,7 +692,6 @@ else:
                 with st.form("form_edicao_membro"):
                     st.subheader(f"Editando: {membro_para_editar.get('Nome')}")
                     
-                    # Converte as datas de string para objeto date para os widgets
                     try:
                         data_nasc_obj = datetime.strptime(membro_para_editar.get("Data de Nascimento"), '%d/%m/%Y').date() if membro_para_editar.get("Data de Nascimento") else None
                         data_conv_obj = datetime.strptime(membro_para_editar.get("Data de Conversao"), '%d/%m/%Y').date() if membro_para_editar.get("Data de Conversao") else None
@@ -700,7 +699,6 @@ else:
                     except (ValueError, TypeError):
                         data_nasc_obj, data_conv_obj, data_adm_obj = None, None, None
 
-                    # Campos do formulário pré-preenchidos
                     st.text_input("Nome", value=membro_para_editar.get("Nome"), key="edit_nome")
                     st.text_input("CPF", value=membro_para_editar.get("CPF"), key="edit_cpf")
                     st.text_input("Celular", value=membro_para_editar.get("Celular"), key="edit_celular")
@@ -728,7 +726,6 @@ else:
                         st.date_input("Data de Conversão", value=data_conv_obj, key="edit_data_conv", format="DD/MM/YYYY")
                         st.text_area("Observações", value=membro_para_editar.get("Observações"), key="edit_observacoes")
 
-                    # Botões de ação do formulário
                     col_salvar, col_cancelar = st.columns(2)
                     with col_salvar:
                         st.form_submit_button("💾 Salvar Alterações", use_container_width=True, type="primary", on_click=submeter_edicao_formulario)
