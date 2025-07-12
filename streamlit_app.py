@@ -1,4 +1,4 @@
-# Versão Final e Corrigida - v6.3 (Edição Expansível)
+# Versão Final e Corrigida - v6.4 (Correção de Erro em Selectbox)
 import streamlit as st
 import pandas as pd
 import gspread
@@ -13,7 +13,7 @@ from streamlit_oauth import OAuth2Component
 import jwt
 
 # --- 1) Configuração da página ---
-st.set_page_config(layout="wide", page_title="Fichário de Membros v6.3")
+st.set_page_config(layout="wide", page_title="Fichário de Membros v6.4")
 
 # --- A) Parâmetros de Login Google ---
 try:
@@ -289,7 +289,7 @@ def init_state():
         if "selecao_busca" not in st.session_state:
             st.session_state.selecao_busca = set()
         
-        # <<< MUDANÇA AQUI: Variáveis de estado para a edição expansível
+        # Variáveis de estado para a edição expansível
         if "editing_member_key" not in st.session_state:
             st.session_state.editing_member_key = None
         if "editing_member_index" not in st.session_state:
@@ -636,9 +636,9 @@ else:
                     with col_edit:
                         if st.button("✏️", key=f"edit_btn_{index}", help=f"Editar {membro.get('Nome')}"):
                             if st.session_state.editing_member_key == index:
-                                st.session_state.editing_member_key = None # Fecha se já estiver aberto
+                                st.session_state.editing_member_key = None
                             else:
-                                st.session_state.editing_member_key = index # Abre para edição
+                                st.session_state.editing_member_key = index
                             st.rerun()
                     
                     with col_nome:
@@ -650,7 +650,6 @@ else:
                     with col_adm: st.write(membro.get("Data de Admissao", ""))
                     with col_forma: st.write(membro.get("Forma de Admissao", ""))
 
-                    # <<< MUDANÇA AQUI: Formulário de edição dentro da lista
                     if st.session_state.editing_member_key == index:
                         st.session_state.editing_member_index = index
                         membro_para_editar = membro
@@ -659,6 +658,23 @@ else:
                         with st.form(key=f"edit_form_{index}"):
                             st.subheader(f"Editando dados de: {membro_para_editar.get('Nome')}")
                             
+                            # <<< INÍCIO DA CORREÇÃO: Lógica segura para obter o índice dos Selectbox
+                            def get_safe_index(options, value):
+                                try:
+                                    return options.index(value)
+                                except (ValueError, TypeError):
+                                    return 0 # Retorna o índice do primeiro item se o valor não for encontrado
+                            
+                            # Listas de opções
+                            estado_civil_options = ["", "Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)"]
+                            forma_admissao_options = ["", "Batismo", "Transferência", "Aclamação"]
+                            sexo_options = ["M", "F"]
+                            nacionalidade_options = ["", "Brasileiro(a)", "Estrangeiro(a)"]
+                            uf_options = [""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"]
+                            grau_instrucao_options = ["", "Fundamental Incompleto", "Fundamental Completo", "Médio Incompleto", "Médio Completo", "Superior Incompleto", "Superior Completo", "Pós-graduação", "Mestrado", "Doutorado"]
+                            status_options = ["Ativo", "Inativo"]
+                            # FIM DAS LISTAS
+
                             try:
                                 data_nasc_obj = datetime.strptime(membro_para_editar.get("Data de Nascimento"), '%d/%m/%Y').date() if membro_para_editar.get("Data de Nascimento") else None
                                 data_conv_obj = datetime.strptime(membro_para_editar.get("Data de Conversao"), '%d/%m/%Y').date() if membro_para_editar.get("Data de Conversao") else None
@@ -666,43 +682,42 @@ else:
                             except (ValueError, TypeError):
                                 data_nasc_obj, data_conv_obj, data_adm_obj = None, None, None
 
-                            # Formulário com todos os campos
                             c1, c2 = st.columns(2)
                             with c1:
                                 st.text_input("Nome", value=membro_para_editar.get("Nome"), key="edit_nome")
                                 st.text_input("CPF", value=membro_para_editar.get("CPF"), key="edit_cpf")
-                                st.selectbox("Estado Civil", ["", "Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)"], index=["", "Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)"].index(membro_para_editar.get("Estado Civil", "")), key="edit_estado_civil")
-                                st.selectbox("Forma de Admissão", ["", "Batismo", "Transferência", "Aclamação"], index=["", "Batismo", "Transferência", "Aclamação"].index(membro_para_editar.get("Forma de Admissao", "")), key="edit_forma_admissao")
+                                st.selectbox("Estado Civil", estado_civil_options, index=get_safe_index(estado_civil_options, membro_para_editar.get("Estado Civil")), key="edit_estado_civil")
+                                st.selectbox("Forma de Admissão", forma_admissao_options, index=get_safe_index(forma_admissao_options, membro_para_editar.get("Forma de Admissao")), key="edit_forma_admissao")
                                 st.text_input("Nome do Pai", value=membro_para_editar.get("Nome do Pai"), key="edit_nome_pai")
                                 st.text_input("Nome da Mãe", value=membro_para_editar.get("Nome da Mae"), key="edit_nome_mae")
                                 st.text_input("Nome do(a) Cônjuge", value=membro_para_editar.get("Nome do(a) Cônjuge"), key="edit_conjuge")
                             with c2:
-                                st.radio("Sexo", ["M", "F"], index=["M", "F"].index(membro_para_editar.get("Sexo", "M")), key="edit_sexo", horizontal=True)
+                                st.radio("Sexo", sexo_options, index=get_safe_index(sexo_options, membro_para_editar.get("Sexo", "M")), key="edit_sexo", horizontal=True)
                                 st.date_input("Data de Nascimento", value=data_nasc_obj, key="edit_data_nasc", format="DD/MM/YYYY")
                                 st.text_input("Profissão", value=membro_para_editar.get("Profissão"), key="edit_profissao")
                                 st.text_input("Celular", value=membro_para_editar.get("Celular"), key="edit_celular")
-                                st.selectbox("Nacionalidade", ["", "Brasileiro(a)", "Estrangeiro(a)"], index=["", "Brasileiro(a)", "Estrangeiro(a)"].index(membro_para_editar.get("Nacionalidade", "")), key="edit_nacionalidade")
+                                st.selectbox("Nacionalidade", nacionalidade_options, index=get_safe_index(nacionalidade_options, membro_para_editar.get("Nacionalidade")), key="edit_nacionalidade")
                                 st.text_input("Naturalidade", value=membro_para_editar.get("Naturalidade"), key="edit_naturalidade")
-                                st.selectbox("UF (Naturalidade)", [""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"], index=([""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"]).index(membro_para_editar.get("UF (Naturalidade)", "")), key="edit_uf_nat")
+                                st.selectbox("UF (Naturalidade)", uf_options, index=get_safe_index(uf_options, membro_para_editar.get("UF (Naturalidade)")), key="edit_uf_nat")
                             
                             st.subheader("Endereço")
                             c3, c4, c5, c6 = st.columns(4)
                             with c3: st.text_input("CEP", value=membro_para_editar.get("CEP"), key="edit_cep")
                             with c4: st.text_input("Endereço", value=membro_para_editar.get("Endereco"), key="edit_endereco")
                             with c5: st.text_input("Bairro", value=membro_para_editar.get("Bairro"), key="edit_bairro")
-                            with c6: st.text_input("Cidade", value=membro_para_editar.get("Cidade"), key="edit_cidade")
+                            with c6: st.selectbox("UF (Endereço)", uf_options, index=get_safe_index(uf_options, membro_para_editar.get("UF (Endereco)")), key="edit_uf_end")
+                            st.text_input("Cidade", value=membro_para_editar.get("Cidade"), key="edit_cidade")
                             
                             st.subheader("Informações Adicionais")
                             c7, c8 = st.columns(2)
                             with c7:
-                                st.selectbox("Grau de Instrução", ["", "Fundamental Incompleto", "Fundamental Completo", "Médio Incompleto", "Médio Completo", "Superior Incompleto", "Superior Completo", "Pós-graduação", "Mestrado", "Doutorado"], index=["", "Fundamental Incompleto", "Fundamental Completo", "Médio Incompleto", "Médio Completo", "Superior Incompleto", "Superior Completo", "Pós-graduação", "Mestrado", "Doutorado"].index(membro_para_editar.get("Grau de Instrução", "")), key="edit_grau_ins")
-                                st.selectbox("Status", ["Ativo", "Inativo"], index=["Ativo", "Inativo"].index(membro_para_editar.get("Status", "Ativo")), key="edit_status")
+                                st.selectbox("Grau de Instrução", grau_instrucao_options, index=get_safe_index(grau_instrucao_options, membro_para_editar.get("Grau de Instrução")), key="edit_grau_ins")
+                                st.selectbox("Status", status_options, index=get_safe_index(status_options, membro_para_editar.get("Status", "Ativo")), key="edit_status")
                                 st.date_input("Data de Conversão", value=data_conv_obj, key="edit_data_conv", format="DD/MM/YYYY")
                                 st.date_input("Data de Admissão", value=data_adm_obj, key="edit_data_adm", format="DD/MM/YYYY")
                             with c8:
                                 st.text_area("Observações", value=membro_para_editar.get("Observações"), key="edit_observacoes", height=250)
                             
-                            # Botões de ação do formulário
                             st.divider()
                             col_salvar, col_cancelar = st.columns(2)
                             with col_salvar:
@@ -713,5 +728,6 @@ else:
                                 if st.form_submit_button("❌ Cancelar", use_container_width=True):
                                     st.session_state.editing_member_key = None
                                     st.rerun()
+                            # <<< FIM DA CORREÇÃO
         else:
             st.info("Nenhum membro encontrado com os filtros aplicados.")
