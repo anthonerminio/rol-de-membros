@@ -1,4 +1,4 @@
-# Versão Final - v7.2 (Correção de NameError)
+# Fichario de Membros PIB Gaibu - v7.2 (Otimizado)
 import streamlit as st
 import pandas as pd
 import gspread
@@ -19,14 +19,16 @@ st.set_page_config(layout="wide", page_title="Fichário de Membros v7.2")
 try:
     GOOGLE_CLIENT_ID = st.secrets["google_oauth"]["client_id"]
     GOOGLE_CLIENT_SECRET = st.secrets["google_oauth"]["client_secret"]
-    GOOGLE_REDIRECT_URI = "https://pibgaibu.streamlit.app"
+    GOOGLE_REDIRECT_URI = "https://pibgaibu.streamlit.app" # URL de produção
     EMAILS_PERMITIDOS = {"antonio.esn01@gmail.com", "neto1999.legal@gmail.com", "adrielsoliveira1907@gmail.com"}
 
     oauth2 = OAuth2Component(
         client_id=GOOGLE_CLIENT_ID,
         client_secret=GOOGLE_CLIENT_SECRET,
         authorize_endpoint="https://accounts.google.com/o/oauth2/v2/auth",
-        token_endpoint="https://oauth2.googleapis.com/token"
+        token_endpoint="https://oauth2.googleapis.com/token",
+        refresh_token_endpoint=None,
+        revoke_token_endpoint=None
     )
 except (KeyError, FileNotFoundError):
     st.error("As credenciais de login (Google OAuth) não foram encontradas nos Segredos do Streamlit.")
@@ -67,6 +69,7 @@ def criar_pdf_aniversariantes_com_status(ativos_df, inativos_df, outros_df, mes_
     try:
         pdf.add_font("DejaVu", "", "fonts/DejaVuSans.ttf", uni=True)
     except RuntimeError:
+        # Fallback para Arial caso a fonte não seja encontrada
         pdf.set_font("Arial", size=16)
 
     pdf.set_font("DejaVu", size=16)
@@ -196,8 +199,13 @@ MAP_KEYS = {"Nome": "nome", "CPF": "cpf", "Sexo": "sexo", "Estado Civil": "estad
 
 def limpar_formulario():
     for key in MAP_KEYS.values():
-        st.session_state[key] = None if "data" in key else ""
-    st.session_state.sexo = "M"
+        if "data" in key:
+            st.session_state[key] = None
+        elif key == 'sexo':
+            st.session_state[key] = "M"
+        else:
+            st.session_state[key] = ""
+
 
 def submeter_formulario():
     novo = {"Nome": str(st.session_state.get("nome", "")).strip().upper(), "CPF": str(st.session_state.get("cpf", "")).strip().upper(), "Sexo": st.session_state.get("sexo", ""), "Estado Civil": st.session_state.get("estado_civil", ""), "Profissão": str(st.session_state.get("profissao", "")).strip().upper(), "Forma de Admissao": st.session_state.get("forma_admissao", ""), "Data de Nascimento": st.session_state.data_nasc.strftime('%d/%m/%Y') if st.session_state.data_nasc else "", "Nacionalidade": st.session_state.get("nacionalidade", ""), "Naturalidade": str(st.session_state.get("naturalidade", "")).strip().upper(), "UF (Naturalidade)": st.session_state.get("uf_nat", ""), "Nome do Pai": str(st.session_state.get("nome_pai", "")).strip().upper(), "Nome da Mae": str(st.session_state.get("nome_mae", "")).strip().upper(), "Nome do(a) Cônjuge": str(st.session_state.get("conjuge", "")).strip().upper(), "CEP": str(st.session_state.get("cep", "")).strip().upper(), "Endereco": str(st.session_state.get("endereco", "")).strip().upper(), "Bairro": str(st.session_state.get("bairro", "")).strip().upper(), "Cidade": str(st.session_state.get("cidade", "")).strip().upper(), "UF (Endereco)": st.session_state.get("uf_end", ""), "Grau de Instrução": st.session_state.get("grau_ins", ""), "Celular": str(st.session_state.get("celular", "")).strip().upper(), "Data de Conversao": st.session_state.data_conv.strftime('%d/%m/%Y') if st.session_state.data_conv else "", "Data de Admissao": st.session_state.data_adm.strftime('%d/%m/%Y') if st.session_state.data_adm else "", "Status": st.session_state.get("status", ""), "Observações": st.session_state.get("observacoes", "").strip()}
@@ -246,6 +254,7 @@ def submeter_edicao_formulario():
     salvar_membros(st.session_state.membros)
     st.toast("Dados salvos com sucesso!", icon="👍")
     st.session_state.editing_member_key = None 
+    st.session_state.editing_member_index = None
 
 def confirmar_mudanca_status():
     chaves_para_atualizar = st.session_state.chaves_para_status
@@ -263,7 +272,11 @@ def confirmar_mudanca_status():
     salvar_membros(st.session_state.membros)
     st.toast(f"Status de {len(chaves_para_atualizar)} membro(s) alterado com sucesso!", icon="👍")
     
-    st.session_state.confirmando_status, st.session_state.chaves_para_status, st.session_state.obs_status = False, set(), ""
+    # Limpa estado de confirmação
+    st.session_state.confirmando_status = False
+    st.session_state.chaves_para_status = set()
+    st.session_state.obs_status = ""
+    # Desmarca os checkboxes
     for key in st.session_state.keys():
         if key.startswith("select_list_"):
             st.session_state[key] = False
@@ -293,11 +306,11 @@ def init_state():
         if "editing_member_index" not in st.session_state:
             st.session_state.editing_member_index = None
 
+        # Inicializa chaves do formulário de cadastro
         for key in MAP_KEYS.values():
             if key not in st.session_state: st.session_state[key] = None if "data" in key else ""
         if "sexo" not in st.session_state or not st.session_state.sexo: st.session_state.sexo = "M"
 
-# <<< CORREÇÃO AQUI: A função display_member_details foi adicionada novamente.
 def display_member_details(membro_dict, context_prefix):
     """Função para exibir os detalhes de um membro em colunas."""
     def display_field(label, value):
@@ -363,20 +376,22 @@ else:
         st.info(f"**Usuário:** {st.session_state.get('username', '')}")
     with col_reload:
         if st.button("🔄 Sincronizar Dados", use_container_width=True):
+            # Apenas recarrega os dados, sem forçar rerun
             st.session_state.membros = carregar_membros()
             st.toast("Dados sincronizados com sucesso!")
-            st.rerun()
     with col_logout:
         if st.button("Sair", use_container_width=True):
+            # Limpa o estado da sessão, o que fará a tela de login aparecer naturalmente
             for key in list(st.session_state.keys()): del st.session_state[key]
-            st.rerun()
+            st.rerun() # st.rerun() é aceitável aqui para garantir a limpeza completa e o redirecionamento
+
     st.divider()
 
     tab1, tab2, tab3, tab4, tab5 = st.tabs(["Cadastro", "Lista de Membros", "Busca e Ações", "Aniversariantes", "✏️ Fichas de Membros"])
 
     with tab1:
         st.header("Cadastro de Novos Membros")
-        with st.form("form_membro"):
+        with st.form("form_membro", clear_on_submit=True):
             st.subheader("Informações Pessoais"); c1, c2 = st.columns(2)
             with c1:
                 st.text_input("Nome", key="nome"); st.text_input("CPF", key="cpf"); st.selectbox("Estado Civil", ["", "Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)"], key="estado_civil"); st.selectbox("Forma de Admissao", ["", "Batismo", "Transferência", "Aclamação"], key="forma_admissao")
@@ -393,7 +408,11 @@ else:
                 if st.form_submit_button("🔎 Buscar CEP"):
                     dados_cep = buscar_cep(st.session_state.cep)
                     if dados_cep:
-                        st.session_state.update(dados_cep)
+                        # Atualiza o estado diretamente, sem recarregar a página
+                        st.session_state.endereco = dados_cep['endereco']
+                        st.session_state.bairro = dados_cep['bairro']
+                        st.session_state.cidade = dados_cep['cidade']
+                        st.session_state.uf_end = dados_cep['uf_end']
                         st.toast("Endereço preenchido!", icon="🏠")
                     elif st.session_state.cep: st.warning("CEP não encontrado ou inválido.")
             c7, c8, c9, c10 = st.columns(4)
@@ -407,7 +426,10 @@ else:
             with c12:
                 st.date_input("Data de Conversao", key="data_conv", value=None, min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY"); st.date_input("Data de Admissao", key="data_adm", value=None, min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY")
             with c13: st.text_area("Observações", key="observacoes")
-            st.markdown("---"); st.form_submit_button("💾 Salvar Membro", on_click=submeter_formulario)
+            st.markdown("---")
+            # A função de submissão já limpa o formulário se o form tiver clear_on_submit=True
+            if st.form_submit_button("💾 Salvar Membro", on_click=submeter_formulario):
+                pass
 
     with tab2:
         st.header("Visão Geral da Membresia")
@@ -417,17 +439,25 @@ else:
             col1_metric, col2_metric, col3_metric, col4_metric = st.columns(4)
             col1_metric.metric("Total de Membros", f"{total_membros} 👥"); col2_metric.metric("Membros Ativos", f"{ativos} 🟢"); col3_metric.metric("Membros Inativos", f"{inativos} 🔴"); col4_metric.metric("Status Não Definido", f"{sem_status} ⚪")
             st.divider()
+            
+            # Coleta as seleções antes de exibir os botões de ação
             selecao_atual = set()
+            for index, membro in df_membros_tab2.iterrows():
+                if st.session_state.get(f"select_list_{index}", False):
+                    selecao_atual.add((membro.get('Nome'), membro.get('Data de Nascimento')))
+            st.session_state.selecao_lista = selecao_atual
+            
             st.subheader("Ações para Itens Selecionados na Lista")
             col_ativo, col_inativo = st.columns(2)
             with col_ativo:
-                if st.button("🟢 Marcar como Ativos", use_container_width=True, disabled=not st.session_state.get("selecao_lista"), key="tab2_ativo"):
+                if st.button("🟢 Marcar como Ativos", use_container_width=True, disabled=not st.session_state.selecao_lista, key="tab2_ativo"):
                     st.session_state.chaves_para_status = st.session_state.selecao_lista
                     st.session_state.novo_status = "ATIVO"; st.session_state.confirmando_status = True
             with col_inativo:
-                if st.button("🔴 Marcar como Inativos", use_container_width=True, disabled=not st.session_state.get("selecao_lista"), key="tab2_inativo"):
+                if st.button("🔴 Marcar como Inativos", use_container_width=True, disabled=not st.session_state.selecao_lista, key="tab2_inativo"):
                     st.session_state.chaves_para_status = st.session_state.selecao_lista
                     st.session_state.novo_status = "INATIVO"; st.session_state.confirmando_status = True
+
             if st.session_state.get('confirmando_status', False):
                 novo_status = st.session_state.get('novo_status', 'DESCONHECIDO'); cor = "green" if novo_status == "ATIVO" else "red"
                 st.markdown(f"Você está prestes a alterar o status de **{len(st.session_state.chaves_para_status)}** membro(s) para <span style='color:{cor}; font-weight:bold;'>{novo_status}</span>.", unsafe_allow_html=True)
@@ -435,13 +465,13 @@ else:
                 col_confirma, col_cancela = st.columns(2)
                 with col_confirma: st.button("Sim, confirmar alteração", use_container_width=True, type="primary", on_click=confirmar_mudanca_status)
                 with col_cancela: st.button("Não, cancelar", use_container_width=True, on_click=cancelar_mudanca_status)
+            
             st.divider()
             for index, membro in df_membros_tab2.iterrows():
                 with st.container(border=True):
                     col_selecao, col_info = st.columns([1, 15])
                     with col_selecao:
-                        if st.checkbox("", key=f"select_list_{index}", label_visibility="collapsed"):
-                            selecao_atual.add((membro.get('Nome'), membro.get('Data de Nascimento')))
+                        st.checkbox("", key=f"select_list_{index}", label_visibility="collapsed")
                     with col_info:
                         status_icon = '🟢' if str(membro.get('Status')).upper() == 'ATIVO' else '🔴' if str(membro.get('Status')).upper() == 'INATIVO' else '⚪'
                         st.subheader(f"{status_icon} {membro.get('Nome')}")
@@ -450,9 +480,9 @@ else:
                         st.caption(f"CPF: {membro.get('CPF', 'N/A')} | Celular: {membro.get('Celular', 'N/A')} | Admissão: {tipo_adm} em {data_adm}")
                         with st.expander("Ver Todos os Detalhes"): 
                             display_member_details(membro, f"list_{index}")
-            st.session_state.selecao_lista = selecao_atual
         else:
             st.info("Nenhum membro cadastrado.")
+
 
     with tab3:
         st.header("Busca e Ações em Massa")
@@ -469,12 +499,20 @@ else:
                 df_filtrado = df_filtrado[mask_termo]
             if data_filtro:
                 data_filtro_str = data_filtro.strftime('%d/%m/%Y'); df_filtrado = df_filtrado[df_filtrado['Data de Nascimento'] == data_filtro_str]
+            
+            selecao_busca_atual = set()
+            for index, membro in df_filtrado.iterrows():
+                 if st.session_state.get(f"select_search_{index}", False):
+                    selecao_busca_atual.add((membro.get('Nome'), membro.get('Data de Nascimento')))
+            st.session_state.selecao_busca = selecao_busca_atual
+
             st.divider()
             st.subheader("Ações para Itens Selecionados")
             sem_selecao_busca = not st.session_state.get("selecao_busca")
             if st.button("🗑️ Excluir Selecionados", use_container_width=True, disabled=sem_selecao_busca, key="tab3_excluir", type="primary"):
                 st.session_state.chaves_para_excluir = st.session_state.selecao_busca
                 st.session_state.confirmando_exclusao = True
+            
             if st.session_state.get('confirmando_exclusao', False):
                 st.warning(f"Deseja realmente deletar os {len(st.session_state.chaves_para_excluir)} itens selecionados?")
                 c1, c2 = st.columns(2)
@@ -483,31 +521,42 @@ else:
                     st.session_state.membros = membros_atualizados
                     salvar_membros(membros_atualizados)
                     st.session_state.confirmando_exclusao, st.session_state.chaves_para_excluir = False, set()
-                    for key in st.session_state.keys():
+                    for key in list(st.session_state.keys()): # Limpa checkboxes
                         if key.startswith("select_search_"):
-                            st.session_state[key] = False
-                    st.success("Registros excluídos!"); st.rerun()
+                            del st.session_state[key]
+                    st.success("Registros excluídos!")
+                    # Não precisa de rerun, a interface será atualizada
                 if c2.button("Não, voltar", use_container_width=True):
-                    st.session_state.confirmando_exclusao, st.session_state.chaves_para_excluir = False, set(); st.rerun()
+                    st.session_state.confirmando_exclusao, st.session_state.chaves_para_excluir = False, set()
+                    # Não precisa de rerun
+            
             st.markdown("---")
             st.subheader("Exportar Seleção em Massa")
             EXPORT_HEADERS_BUSCA = ["Nome", "Data de Nascimento", "Forma de Admissao", "Data de Admissao", "Data de Conversao", "Celular"]
+            
+            df_para_exportar = pd.DataFrame() # Inicializa vazio
             if not df_original.empty and st.session_state.get("selecao_busca"):
                 df_para_exportar = df_original[df_original.apply(lambda row: (row['Nome'], row['Data de Nascimento']) in st.session_state.selecao_busca, axis=1)]
                 df_para_exportar = df_para_exportar[EXPORT_HEADERS_BUSCA]
-                output_excel = BytesIO();
-                with pd.ExcelWriter(output_excel, engine='openpyxl') as writer: df_para_exportar.to_excel(writer, index=False, sheet_name='Membros')
-                excel_data = output_excel.getvalue()
-                pdf_data = criar_pdf_exportacao_busca(df_para_exportar)
-            else:
-                excel_data, pdf_data = b"", b""
+            
+            excel_data = b""
+            if not df_para_exportar.empty:
+                 output_excel = BytesIO();
+                 with pd.ExcelWriter(output_excel, engine='openpyxl') as writer: df_para_exportar.to_excel(writer, index=False, sheet_name='Membros')
+                 excel_data = output_excel.getvalue()
+
+            pdf_data = b""
+            if not df_para_exportar.empty:
+                 pdf_data = criar_pdf_exportacao_busca(df_para_exportar)
+
             col_excel, col_pdf = st.columns(2)
             with col_excel:
                 st.download_button("📄 Exportar Excel", excel_data, "exportacao_membros.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True, disabled=sem_selecao_busca)
             with col_pdf:
                 st.download_button("📕 Exportar PDF", pdf_data, "exportacao_membros.pdf", "application/pdf", use_container_width=True, disabled=sem_selecao_busca)
+            
             st.markdown("---")
-            selecao_busca_atual = set()
+
             if df_filtrado.empty and (termo or data_filtro):
                 st.warning("Nenhum membro encontrado com os critérios de busca especificados.")
             else:
@@ -516,55 +565,61 @@ else:
                     with st.container(border=True):
                         col_selecao_b, col_info_b = st.columns([1, 15])
                         with col_selecao_b:
-                            if st.checkbox("", key=f"select_search_{index}", label_visibility="collapsed"):
-                                selecao_busca_atual.add((membro.get('Nome'), membro.get('Data de Nascimento')))
+                            st.checkbox("", key=f"select_search_{index}", label_visibility="collapsed")
                         with col_info_b:
                             status_icon = '🟢' if str(membro.get('Status')).upper() == 'ATIVO' else '🔴' if str(membro.get('Status')).upper() == 'INATIVO' else '⚪'
                             st.subheader(f"{status_icon} {membro.get('Nome')}")
                             st.caption(f"CPF: {membro.get('CPF')} | Data de Admissão: {membro.get('Data de Admissao')}")
-            st.session_state.selecao_busca = selecao_busca_atual
+
 
     with tab4:
         st.header("Aniversariantes do Mês")
         if "membros" in st.session_state and st.session_state.membros:
             df_membros = pd.DataFrame(st.session_state.membros)
-            df_membros['Data de Nascimento_dt'] = pd.to_datetime(df_membros['Data de Nascimento'], format='%d/%m/%Y', errors='coerce')
-            df_membros.dropna(subset=['Data de Nascimento_dt'], inplace=True)
-            df_membros['Mês'] = df_membros['Data de Nascimento_dt'].dt.month
-            df_membros['Dia'] = df_membros['Data de Nascimento_dt'].dt.day
-            meses_pt = {"Janeiro": 1, "Fevereiro": 2, "Março": 3, "Abril": 4, "Maio": 5, "Junho": 6, "Julho": 7, "Agosto": 8, "Setembro": 9, "Outubro": 10, "Novembro": 11, "Dezembro": 12}
-            mes_selecionado = st.selectbox("Escolha o mês para ver a lista de aniversariantes:", options=list(meses_pt.keys()), index=datetime.now().month - 1, placeholder="Selecione um mês...")
-            if mes_selecionado:
-                num_mes = meses_pt[mes_selecionado]
-                aniversariantes_df = df_membros[df_membros['Mês'] == num_mes].sort_values(by='Dia')
-                if aniversariantes_df.empty:
-                    st.info("Nenhum aniversariante encontrado para este mês.")
-                else:
-                    st.markdown(f"### Aniversariantes de {mes_selecionado}")
-                    ativos_df = aniversariantes_df[aniversariantes_df['Status'].str.upper() == 'ATIVO']
-                    inativos_df = aniversariantes_df[aniversariantes_df['Status'].str.upper() == 'INATIVO']
-                    outros_df = aniversariantes_df[~aniversariantes_df['Status'].str.upper().isin(['ATIVO', 'INATIVO'])]
-                    df_display_cols = {'Nome': 'Nome Completo', 'Data de Nascimento': 'Data de Nascimento Completa'}
-                    def display_birthday_section(title, df_section, icon):
-                        if not df_section.empty:
-                            st.markdown(f"#### {icon} {title}")
-                            for _, row in df_section.iterrows():
-                                with st.container(border=True):
-                                    st.markdown(f"**Dia {row['Dia']}** - {row['Nome']}")
-                            st.markdown("<br>", unsafe_allow_html=True)
-                    display_birthday_section("Aniversariantes Ativos", ativos_df, "🟢")
-                    display_birthday_section("Aniversariantes Inativos", inativos_df, "🔴")
-                    display_birthday_section("Aniversariantes com Status Não Definido", outros_df, "⚪")
-                    st.markdown("---")
-                    pdf_data = criar_pdf_aniversariantes_com_status(
-                        ativos_df.rename(columns=df_display_cols),
-                        inativos_df.rename(columns=df_display_cols),
-                        outros_df.rename(columns=df_display_cols),
-                        mes_selecionado
-                    )
-                    st.download_button(label=f"📕 Exportar PDF de Aniversariantes de {mes_selecionado}", data=pdf_data, file_name=f"aniversariantes_{mes_selecionado.lower()}.pdf", mime="application/pdf", use_container_width=True)
+            # Previne erro se a coluna não existir ou estiver vazia
+            if 'Data de Nascimento' in df_membros.columns and not df_membros['Data de Nascimento'].isnull().all():
+                df_membros['Data de Nascimento_dt'] = pd.to_datetime(df_membros['Data de Nascimento'], format='%d/%m/%Y', errors='coerce')
+                df_membros.dropna(subset=['Data de Nascimento_dt'], inplace=True)
+                df_membros['Mês'] = df_membros['Data de Nascimento_dt'].dt.month
+                df_membros['Dia'] = df_membros['Data de Nascimento_dt'].dt.day
+                meses_pt = {"Janeiro": 1, "Fevereiro": 2, "Março": 3, "Abril": 4, "Maio": 5, "Junho": 6, "Julho": 7, "Agosto": 8, "Setembro": 9, "Outubro": 10, "Novembro": 11, "Dezembro": 12}
+                mes_selecionado = st.selectbox("Escolha o mês para ver a lista de aniversariantes:", options=list(meses_pt.keys()), index=datetime.now().month - 1, placeholder="Selecione um mês...")
+                if mes_selecionado:
+                    num_mes = meses_pt[mes_selecionado]
+                    aniversariantes_df = df_membros[df_membros['Mês'] == num_mes].sort_values(by='Dia')
+                    if aniversariantes_df.empty:
+                        st.info("Nenhum aniversariante encontrado para este mês.")
+                    else:
+                        st.markdown(f"### Aniversariantes de {mes_selecionado}")
+                        ativos_df = aniversariantes_df[aniversariantes_df['Status'].str.upper() == 'ATIVO']
+                        inativos_df = aniversariantes_df[aniversariantes_df['Status'].str.upper() == 'INATIVO']
+                        outros_df = aniversariantes_df[~aniversariantes_df['Status'].str.upper().isin(['ATIVO', 'INATIVO'])]
+                        df_display_cols = {'Nome': 'Nome Completo', 'Data de Nascimento': 'Data de Nascimento Completa'}
+                        
+                        def display_birthday_section(title, df_section, icon):
+                            if not df_section.empty:
+                                st.markdown(f"#### {icon} {title}")
+                                for _, row in df_section.iterrows():
+                                    with st.container(border=True):
+                                        st.markdown(f"**Dia {row['Dia']}** - {row['Nome']}")
+                                st.markdown("<br>", unsafe_allow_html=True)
+
+                        display_birthday_section("Aniversariantes Ativos", ativos_df, "🟢")
+                        display_birthday_section("Aniversariantes Inativos", inativos_df, "🔴")
+                        display_birthday_section("Aniversariantes com Status Não Definido", outros_df, "⚪")
+                        st.markdown("---")
+                        pdf_data = criar_pdf_aniversariantes_com_status(
+                            ativos_df.rename(columns=df_display_cols),
+                            inativos_df.rename(columns=df_display_cols),
+                            outros_df.rename(columns=df_display_cols),
+                            mes_selecionado
+                        )
+                        st.download_button(label=f"📕 Exportar PDF de Aniversariantes de {mes_selecionado}", data=pdf_data, file_name=f"aniversariantes_{mes_selecionado.lower()}.pdf", mime="application/pdf", use_container_width=True)
+            else:
+                 st.info("Não há membros com data de nascimento cadastrada para gerar a lista.")
         else:
             st.info("Não há membros cadastrados para gerar a lista de aniversariantes.")
+
 
     with tab5:
         st.header("Fichas de Membros")
@@ -606,8 +661,8 @@ else:
                     col_edit, col_nome, col_cpf, col_nasc, col_adm, col_forma, col_pdf = st.columns([1, 4, 2, 2, 2, 2, 1.5])
                     with col_edit:
                         if st.button("✏️", key=f"edit_btn_{index}", help=f"Editar {membro.get('Nome')}"):
+                            # Apenas alterna o estado de edição, sem st.rerun()
                             st.session_state.editing_member_key = index if st.session_state.editing_member_key != index else None
-                            st.rerun()
                     
                     with col_nome:
                         status_icon = '🟢' if str(membro.get('Status', '')).upper() == 'ATIVO' else '🔴' if str(membro.get('Status', '')).upper() == 'INATIVO' else '⚪'
@@ -619,15 +674,16 @@ else:
                     with col_forma: st.write(membro.get("Forma de Admissao", ""))
                     
                     with col_pdf:
-                        pdf_data = criar_pdf_ficha(membro)
+                        pdf_data_ficha = criar_pdf_ficha(membro)
                         st.download_button(
                             label="🖨️ PDF",
-                            data=pdf_data,
-                            file_name=f"ficha_{membro.get('Nome').replace(' ', '_').lower()}.pdf",
+                            data=pdf_data_ficha,
+                            file_name=f"ficha_{membro.get('Nome', 'membro').replace(' ', '_').lower()}.pdf",
                             mime="application/pdf",
                             key=f"pdf_btn_{index}"
                         )
 
+                    # Se este for o membro sendo editado, mostra o formulário
                     if st.session_state.editing_member_key == index:
                         st.session_state.editing_member_index = index
                         membro_para_editar = membro
@@ -690,10 +746,10 @@ else:
                             with col_salvar:
                                 if st.form_submit_button("💾 Salvar Alterações", use_container_width=True, type="primary"):
                                     submeter_edicao_formulario()
-                                    st.rerun()
+                                    # Não precisa de rerun, a submissão já limpa o estado
                             with col_cancelar:
                                 if st.form_submit_button("❌ Cancelar", use_container_width=True):
                                     st.session_state.editing_member_key = None
-                                    st.rerun()
+                                    # Não precisa de rerun
         else:
             st.info("Nenhum membro encontrado com os filtros aplicados.")
