@@ -1,4 +1,4 @@
-# Versão Final - v7.0 (Abas Unificadas)
+# Versão Final - v7.1 (Exportação Direta na Lista)
 import streamlit as st
 import pandas as pd
 import gspread
@@ -13,7 +13,7 @@ from streamlit_oauth import OAuth2Component
 import jwt
 
 # --- 1) Configuração da página ---
-st.set_page_config(layout="wide", page_title="Fichário de Membros v7.0")
+st.set_page_config(layout="wide", page_title="Fichário de Membros v7.1")
 
 # --- A) Parâmetros de Login Google ---
 try:
@@ -297,42 +297,6 @@ def init_state():
             if key not in st.session_state: st.session_state[key] = None if "data" in key else ""
         if "sexo" not in st.session_state or not st.session_state.sexo: st.session_state.sexo = "M"
 
-def display_member_details(membro_dict, context_prefix):
-    def display_field(label, value):
-        if value and str(value).strip(): st.markdown(f"**{label}:** {value}")
-    st.markdown("##### 👤 Dados Pessoais")
-    c1, c2 = st.columns(2)
-    with c1:
-        display_field("CPF", membro_dict.get("CPF")); display_field("Sexo", membro_dict.get("Sexo")); display_field("Estado Civil", membro_dict.get("Estado Civil"))
-    with c2:
-        display_field("Data de Nascimento", membro_dict.get("Data de Nascimento")); display_field("Celular", membro_dict.get("Celular")); display_field("Profissão", membro_dict.get("Profissão"))
-    st.divider()
-    st.markdown("##### 👨‍👩‍👧 Filiação e Origem")
-    c3, c4 = st.columns(2)
-    with c3:
-        display_field("Nome do Pai", membro_dict.get("Nome do Pai")); display_field("Nome da Mãe", membro_dict.get("Nome da Mae"))
-    with c4:
-        display_field("Nome do(a) Cônjuge", membro_dict.get("Nome do(a) Cônjuge")); display_field("Nacionalidade", membro_dict.get("Nacionalidade")); display_field("Naturalidade", membro_dict.get("Naturalidade"))
-    st.divider()
-    st.markdown("##### 🏠 Endereço")
-    c5, c6 = st.columns(2)
-    with c5:
-        display_field("CEP", membro_dict.get("CEP")); display_field("Endereço", membro_dict.get("Endereco"))
-    with c6:
-        display_field("Bairro", membro_dict.get("Bairro")); display_field("Cidade", membro_dict.get("Cidade")); display_field("UF", membro_dict.get("UF (Endereco)"))
-    st.divider()
-    st.markdown("##### ⛪ Dados Eclesiásticos")
-    c7, c8 = st.columns(2)
-    with c7:
-        display_field("Status", membro_dict.get("Status")); display_field("Forma de Admissão", membro_dict.get("Forma de Admissao"))
-    with c8:
-        display_field("Data de Admissão", membro_dict.get("Data de Admissao")); display_field("Data de Conversão", membro_dict.get("Data de Conversao"))
-    st.divider()
-    st.markdown("##### 📝 Observações")
-    obs = membro_dict.get("Observações")
-    if obs and obs.strip():
-        st.text_area("", value=obs, height=100, disabled=True, label_visibility="collapsed", key=f"obs_{context_prefix}")
-
 # --- C) Lógica Principal de Exibição ---
 init_state()
 if not st.session_state.get("authenticated", False):
@@ -370,8 +334,7 @@ else:
             st.rerun()
     st.divider()
 
-    # <<< MUDANÇA AQUI: Reduzido para 5 abas
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Cadastro", "Lista de Membros", "Busca e Ações", "Aniversariantes", "✏️ Editar / Fichas"])
+    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Cadastro", "Lista de Membros", "Busca e Ações", "Aniversariantes", "✏️ Fichas de Membros"])
 
     with tab1:
         st.header("Cadastro de Novos Membros")
@@ -453,7 +416,7 @@ else:
             st.info("Nenhum membro cadastrado.")
 
     with tab3:
-        st.header("Buscar e Realizar Ações")
+        st.header("Busca e Ações em Massa")
         col_busca1, col_busca2 = st.columns(2)
         with col_busca1: termo = st.text_input("Buscar por Nome ou CPF", key="busca_termo").strip().upper()
         with col_busca2: data_filtro = st.date_input("Buscar por Data de Nascimento", value=None, key="busca_data", min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY")
@@ -564,11 +527,10 @@ else:
         else:
             st.info("Não há membros cadastrados para gerar a lista de aniversariantes.")
 
-    # <<< ABA UNIFICADA DE EDIÇÃO E EXPORTAÇÃO DE FICHA
+    # --- ABA UNIFICADA DE EDIÇÃO E EXPORTAÇÃO DE FICHA ---
     with tab5:
-        st.header("Editar Dados e Gerar Fichas")
+        st.header("Fichas de Membros")
 
-        # Filtros
         col_filtro1, col_filtro2, col_filtro3 = st.columns(3)
         with col_filtro1:
             termo_busca_edicao = st.text_input("Buscar por Nome ou CPF", key="edit_search_term", placeholder="Digite para buscar...").upper()
@@ -580,7 +542,6 @@ else:
         df_membros_edicao = pd.DataFrame(st.session_state.membros)
 
         if not df_membros_edicao.empty:
-            # Aplicar filtros
             if termo_busca_edicao:
                 df_membros_edicao = df_membros_edicao[df_membros_edicao.apply(lambda row: termo_busca_edicao in str(row.get('Nome', '')).upper() or termo_busca_edicao in str(row.get('CPF', '')), axis=1)]
             if len(data_nasc_range) == 2:
@@ -594,25 +555,23 @@ else:
 
             st.divider()
             
-            # Cabeçalho da lista
-            col_h1, col_h2, col_h3, col_h4, col_h5, col_h6 = st.columns([1, 5, 2, 2, 2, 2])
+            # <<< MUDANÇA AQUI: Nova estrutura de colunas do cabeçalho
+            col_h1, col_h2, col_h3, col_h4, col_h5, col_h6, col_h7 = st.columns([1, 4, 2, 2, 2, 2, 1.5])
             with col_h1: st.markdown("**Ações**")
             with col_h2: st.markdown("**Nome Completo**")
             with col_h3: st.markdown("**CPF**")
             with col_h4: st.markdown("**Nascimento**")
             with col_h5: st.markdown("**Admissão**")
             with col_h6: st.markdown("**Forma**")
+            with col_h7: st.markdown("**Exportar/Imprimir**")
 
-            # Lista de membros para edição
             for index, membro in df_membros_edicao.iterrows():
                 with st.container(border=True):
-                    col_edit, col_nome, col_cpf, col_nasc, col_adm, col_forma = st.columns([1, 5, 2, 2, 2, 2])
+                    # <<< MUDANÇA AQUI: Nova estrutura de colunas da lista
+                    col_edit, col_nome, col_cpf, col_nasc, col_adm, col_forma, col_pdf = st.columns([1, 4, 2, 2, 2, 2, 1.5])
                     with col_edit:
-                        if st.button("✏️", key=f"edit_btn_{index}", help=f"Editar / Ver Ficha de {membro.get('Nome')}"):
-                            if st.session_state.editing_member_key == index:
-                                st.session_state.editing_member_key = None
-                            else:
-                                st.session_state.editing_member_key = index
+                        if st.button("✏️", key=f"edit_btn_{index}", help=f"Editar {membro.get('Nome')}"):
+                            st.session_state.editing_member_key = index if st.session_state.editing_member_key != index else None
                             st.rerun()
                     
                     with col_nome:
@@ -623,38 +582,31 @@ else:
                     with col_nasc: st.write(membro.get("Data de Nascimento", ""))
                     with col_adm: st.write(membro.get("Data de Admissao", ""))
                     with col_forma: st.write(membro.get("Forma de Admissao", ""))
+                    
+                    with col_pdf:
+                        # <<< MUDANÇA AQUI: Botão para imprimir PDF diretamente na linha
+                        pdf_data = criar_pdf_ficha(membro)
+                        st.download_button(
+                            label="🖨️ PDF",
+                            data=pdf_data,
+                            file_name=f"ficha_{membro.get('Nome').replace(' ', '_').lower()}.pdf",
+                            mime="application/pdf",
+                            key=f"pdf_btn_{index}"
+                        )
 
                     if st.session_state.editing_member_key == index:
                         st.session_state.editing_member_index = index
                         membro_para_editar = membro
-
-                        st.divider()
                         
-                        # <<< MUDANÇA AQUI: Botão de imprimir/exportar PDF
-                        pdf_data_ficha = criar_pdf_ficha(membro_para_editar)
-                        st.download_button(
-                            label="🖨️ Exportar Ficha como PDF",
-                            data=pdf_data_ficha,
-                            file_name=f"ficha_{membro_para_editar.get('Nome').replace(' ', '_').lower()}.pdf",
-                            mime="application/pdf",
-                            use_container_width=True
-                        )
                         st.divider()
-
                         with st.form(key=f"edit_form_{index}"):
                             st.subheader(f"Editando dados de: {membro_para_editar.get('Nome')}")
                             
                             def get_safe_index(options, value):
                                 try: return options.index(value)
-                                except (ValueError, TypeError): return 0 
+                                except (ValueError, TypeError): return 0
                             
-                            estado_civil_options = ["", "Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)"]
-                            forma_admissao_options = ["", "Batismo", "Transferência", "Aclamação"]
-                            sexo_options = ["M", "F"]
-                            nacionalidade_options = ["", "Brasileiro(a)", "Estrangeiro(a)"]
-                            uf_options = [""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"]
-                            grau_instrucao_options = ["", "Fundamental Incompleto", "Fundamental Completo", "Médio Incompleto", "Médio Completo", "Superior Incompleto", "Superior Completo", "Pós-graduação", "Mestrado", "Doutorado"]
-                            status_options = ["Ativo", "Inativo"]
+                            estado_civil_options, forma_admissao_options, sexo_options, nacionalidade_options, uf_options, grau_instrucao_options, status_options = ["", "Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)"], ["", "Batismo", "Transferência", "Aclamação"], ["M", "F"], ["", "Brasileiro(a)", "Estrangeiro(a)"], [""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"], ["", "Fundamental Incompleto", "Fundamental Completo", "Médio Incompleto", "Médio Completo", "Superior Incompleto", "Superior Completo", "Pós-graduação", "Mestrado", "Doutorado"], ["Ativo", "Inativo"]
 
                             try:
                                 data_nasc_obj = datetime.strptime(membro_para_editar.get("Data de Nascimento"), '%d/%m/%Y').date() if membro_para_editar.get("Data de Nascimento") else None
@@ -670,14 +622,12 @@ else:
                                 st.selectbox("Estado Civil", estado_civil_options, index=get_safe_index(estado_civil_options, membro_para_editar.get("Estado Civil")), key="edit_estado_civil")
                                 st.text_input("Nome do Pai", value=membro_para_editar.get("Nome do Pai"), key="edit_nome_pai")
                                 st.text_input("Nome da Mãe", value=membro_para_editar.get("Nome da Mae"), key="edit_nome_mae")
-                                st.text_input("Nome do(a) Cônjuge", value=membro_para_editar.get("Nome do(a) Cônjuge"), key="edit_conjuge")
                             with c2:
                                 st.radio("Sexo", sexo_options, index=get_safe_index(sexo_options, membro_para_editar.get("Sexo", "M")), key="edit_sexo", horizontal=True)
                                 st.date_input("Data de Nascimento", value=data_nasc_obj, key="edit_data_nasc", format="DD/MM/YYYY")
                                 st.text_input("Profissão", value=membro_para_editar.get("Profissão"), key="edit_profissao")
                                 st.text_input("Celular", value=membro_para_editar.get("Celular"), key="edit_celular")
                                 st.selectbox("Nacionalidade", nacionalidade_options, index=get_safe_index(nacionalidade_options, membro_para_editar.get("Nacionalidade")), key="edit_nacionalidade")
-                                st.text_input("Naturalidade", value=membro_para_editar.get("Naturalidade"), key="edit_naturalidade")
                             
                             st.subheader("Endereço")
                             c3, c4, c5 = st.columns(3)
@@ -688,7 +638,7 @@ else:
                             c6, c7, c8 = st.columns(3)
                             with c6: st.text_input("Cidade", value=membro_para_editar.get("Cidade"), key="edit_cidade")
                             with c7: st.selectbox("UF (Endereço)", uf_options, index=get_safe_index(uf_options, membro_para_editar.get("UF (Endereco)")), key="edit_uf_end")
-                            with c8: st.selectbox("UF (Naturalidade)", uf_options, index=get_safe_index(uf_options, membro_para_editar.get("UF (Naturalidade)")), key="edit_uf_nat")
+                            with c8: st.text_input("Naturalidade", value=membro_para_editar.get("Naturalidade"), key="edit_naturalidade")
                             
                             st.subheader("Informações Eclesiásticas e Adicionais")
                             c9, c10 = st.columns(2)
