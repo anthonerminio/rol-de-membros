@@ -1,4 +1,4 @@
-# Versão Final e Corrigida - v6.2 (Correção de Pop-up)
+# Versão Final e Corrigida - v6.3 (Edição Expansível)
 import streamlit as st
 import pandas as pd
 import gspread
@@ -13,7 +13,7 @@ from streamlit_oauth import OAuth2Component
 import jwt
 
 # --- 1) Configuração da página ---
-st.set_page_config(layout="wide", page_title="Fichário de Membros v6.2")
+st.set_page_config(layout="wide", page_title="Fichário de Membros v6.3")
 
 # --- A) Parâmetros de Login Google ---
 try:
@@ -246,7 +246,7 @@ def submeter_edicao_formulario():
     st.session_state.membros[index] = membro_editado
     salvar_membros(st.session_state.membros)
     st.toast("Dados salvos com sucesso!", icon="👍")
-    st.session_state.show_edit_modal = False
+    st.session_state.editing_member_key = None # Fecha o formulário expansível
 
 def confirmar_mudanca_status():
     chaves_para_atualizar = st.session_state.chaves_para_status
@@ -289,11 +289,11 @@ def init_state():
         if "selecao_busca" not in st.session_state:
             st.session_state.selecao_busca = set()
         
-        # Novas variáveis de estado para a aba de edição
+        # <<< MUDANÇA AQUI: Variáveis de estado para a edição expansível
+        if "editing_member_key" not in st.session_state:
+            st.session_state.editing_member_key = None
         if "editing_member_index" not in st.session_state:
             st.session_state.editing_member_index = None
-        if "show_edit_modal" not in st.session_state:
-            st.session_state.show_edit_modal = False
 
         for key in MAP_KEYS.values():
             if key not in st.session_state: st.session_state[key] = None if "data" in key else ""
@@ -374,6 +374,7 @@ else:
 
     tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Cadastro", "Lista de Membros", "Busca e Ações", "Aniversariantes", "Ficha Individual", "✏️ Editar Membro"])
 
+    # As abas de 1 a 5 permanecem inalteradas.
     with tab1:
         st.header("Cadastro de Novos Membros")
         with st.form("form_membro"):
@@ -417,11 +418,9 @@ else:
             col1_metric, col2_metric, col3_metric, col4_metric = st.columns(4)
             col1_metric.metric("Total de Membros", f"{total_membros} 👥"); col2_metric.metric("Membros Ativos", f"{ativos} 🟢"); col3_metric.metric("Membros Inativos", f"{inativos} 🔴"); col4_metric.metric("Status Não Definido", f"{sem_status} ⚪")
             st.divider()
-
             selecao_atual = set()
             st.subheader("Ações para Itens Selecionados na Lista")
             col_ativo, col_inativo = st.columns(2)
-            
             with col_ativo:
                 if st.button("🟢 Marcar como Ativos", use_container_width=True, disabled=not st.session_state.get("selecao_lista"), key="tab2_ativo"):
                     st.session_state.chaves_para_status = st.session_state.selecao_lista
@@ -430,7 +429,6 @@ else:
                 if st.button("🔴 Marcar como Inativos", use_container_width=True, disabled=not st.session_state.get("selecao_lista"), key="tab2_inativo"):
                     st.session_state.chaves_para_status = st.session_state.selecao_lista
                     st.session_state.novo_status = "INATIVO"; st.session_state.confirmando_status = True
-
             if st.session_state.get('confirmando_status', False):
                 novo_status = st.session_state.get('novo_status', 'DESCONHECIDO'); cor = "green" if novo_status == "ATIVO" else "red"
                 st.markdown(f"Você está prestes a alterar o status de **{len(st.session_state.chaves_para_status)}** membro(s) para <span style='color:{cor}; font-weight:bold;'>{novo_status}</span>.", unsafe_allow_html=True)
@@ -438,9 +436,7 @@ else:
                 col_confirma, col_cancela = st.columns(2)
                 with col_confirma: st.button("Sim, confirmar alteração", use_container_width=True, type="primary", on_click=confirmar_mudanca_status)
                 with col_cancela: st.button("Não, cancelar", use_container_width=True, on_click=cancelar_mudanca_status)
-            
             st.divider()
-
             for index, membro in df_membros_tab2.iterrows():
                 with st.container(border=True):
                     col_selecao, col_info = st.columns([1, 15])
@@ -454,9 +450,7 @@ else:
                         data_adm = membro.get('Data de Admissao', 'N/A')
                         st.caption(f"CPF: {membro.get('CPF', 'N/A')} | Celular: {membro.get('Celular', 'N/A')} | Admissão: {tipo_adm} em {data_adm}")
                         with st.expander("Ver Todos os Detalhes"): display_member_details(membro, f"list_{index}")
-            
             st.session_state.selecao_lista = selecao_atual
-
         else:
             st.info("Nenhum membro cadastrado.")
 
@@ -465,7 +459,6 @@ else:
         col_busca1, col_busca2 = st.columns(2)
         with col_busca1: termo = st.text_input("Buscar por Nome ou CPF", key="busca_termo").strip().upper()
         with col_busca2: data_filtro = st.date_input("Buscar por Data de Nascimento", value=None, key="busca_data", min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY")
-
         df_original = pd.DataFrame(st.session_state.membros)
         if df_original.empty: st.warning("Não há membros cadastrados para exibir.")
         else:
@@ -476,16 +469,12 @@ else:
                 df_filtrado = df_filtrado[mask_termo]
             if data_filtro:
                 data_filtro_str = data_filtro.strftime('%d/%m/%Y'); df_filtrado = df_filtrado[df_filtrado['Data de Nascimento'] == data_filtro_str]
-
             st.divider()
-            
             st.subheader("Ações para Itens Selecionados")
-            
             sem_selecao_busca = not st.session_state.get("selecao_busca")
             if st.button("🗑️ Excluir Selecionados", use_container_width=True, disabled=sem_selecao_busca, key="tab3_excluir", type="primary"):
                 st.session_state.chaves_para_excluir = st.session_state.selecao_busca
                 st.session_state.confirmando_exclusao = True
-            
             if st.session_state.get('confirmando_exclusao', False):
                 st.warning(f"Deseja realmente deletar os {len(st.session_state.chaves_para_excluir)} itens selecionados?")
                 c1, c2 = st.columns(2)
@@ -500,32 +489,24 @@ else:
                     st.success("Registros excluídos!"); st.rerun()
                 if c2.button("Não, voltar", use_container_width=True):
                     st.session_state.confirmando_exclusao, st.session_state.chaves_para_excluir = False, set(); st.rerun()
-
             st.markdown("---")
             st.subheader("Exportar Seleção em Massa")
-
             EXPORT_HEADERS_BUSCA = ["Nome", "Data de Nascimento", "Forma de Admissao", "Data de Admissao", "Data de Conversao", "Celular"]
-
             if not df_original.empty and st.session_state.get("selecao_busca"):
                 df_para_exportar = df_original[df_original.apply(lambda row: (row['Nome'], row['Data de Nascimento']) in st.session_state.selecao_busca, axis=1)]
                 df_para_exportar = df_para_exportar[EXPORT_HEADERS_BUSCA]
-                
                 output_excel = BytesIO();
                 with pd.ExcelWriter(output_excel, engine='openpyxl') as writer: df_para_exportar.to_excel(writer, index=False, sheet_name='Membros')
                 excel_data = output_excel.getvalue()
-                
                 pdf_data = criar_pdf_exportacao_busca(df_para_exportar)
             else:
                 excel_data, pdf_data = b"", b""
-            
             col_excel, col_pdf = st.columns(2)
             with col_excel:
                 st.download_button("📄 Exportar Excel", excel_data, "exportacao_membros.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True, disabled=sem_selecao_busca)
             with col_pdf:
                 st.download_button("📕 Exportar PDF", pdf_data, "exportacao_membros.pdf", "application/pdf", use_container_width=True, disabled=sem_selecao_busca)
-
             st.markdown("---")
-            
             selecao_busca_atual = set()
             if df_filtrado.empty and (termo or data_filtro):
                 st.warning("Nenhum membro encontrado com os critérios de busca especificados.")
@@ -541,7 +522,6 @@ else:
                             status_icon = '🟢' if str(membro.get('Status')).upper() == 'ATIVO' else '🔴' if str(membro.get('Status')).upper() == 'INATIVO' else '⚪'
                             st.subheader(f"{status_icon} {membro.get('Nome')}")
                             st.caption(f"CPF: {membro.get('CPF')} | Data de Admissão: {membro.get('Data de Admissao')}")
-            
             st.session_state.selecao_busca = selecao_busca_atual
 
     with tab4:
@@ -552,25 +532,19 @@ else:
             df_membros.dropna(subset=['Data de Nascimento_dt'], inplace=True)
             df_membros['Mês'] = df_membros['Data de Nascimento_dt'].dt.month
             df_membros['Dia'] = df_membros['Data de Nascimento_dt'].dt.day
-            
             meses_pt = {"Janeiro": 1, "Fevereiro": 2, "Março": 3, "Abril": 4, "Maio": 5, "Junho": 6, "Julho": 7, "Agosto": 8, "Setembro": 9, "Outubro": 10, "Novembro": 11, "Dezembro": 12}
             mes_selecionado = st.selectbox("Escolha o mês para ver a lista de aniversariantes:", options=list(meses_pt.keys()), index=datetime.now().month - 1, placeholder="Selecione um mês...")
-            
             if mes_selecionado:
                 num_mes = meses_pt[mes_selecionado]
                 aniversariantes_df = df_membros[df_membros['Mês'] == num_mes].sort_values(by='Dia')
-
                 if aniversariantes_df.empty:
                     st.info("Nenhum aniversariante encontrado para este mês.")
                 else:
                     st.markdown(f"### Aniversariantes de {mes_selecionado}")
-
                     ativos_df = aniversariantes_df[aniversariantes_df['Status'].str.upper() == 'ATIVO']
                     inativos_df = aniversariantes_df[aniversariantes_df['Status'].str.upper() == 'INATIVO']
                     outros_df = aniversariantes_df[~aniversariantes_df['Status'].str.upper().isin(['ATIVO', 'INATIVO'])]
-                    
                     df_display_cols = {'Nome': 'Nome Completo', 'Data de Nascimento': 'Data de Nascimento Completa'}
-
                     def display_birthday_section(title, df_section, icon):
                         if not df_section.empty:
                             st.markdown(f"#### {icon} {title}")
@@ -578,11 +552,9 @@ else:
                                 with st.container(border=True):
                                     st.markdown(f"**Dia {row['Dia']}** - {row['Nome']}")
                             st.markdown("<br>", unsafe_allow_html=True)
-
                     display_birthday_section("Aniversariantes Ativos", ativos_df, "🟢")
                     display_birthday_section("Aniversariantes Inativos", inativos_df, "🔴")
                     display_birthday_section("Aniversariantes com Status Não Definido", outros_df, "⚪")
-
                     st.markdown("---")
                     pdf_data = criar_pdf_aniversariantes_com_status(
                         ativos_df.rename(columns=df_display_cols),
@@ -606,7 +578,6 @@ else:
                     st.subheader(f"Ficha de: {membro_dict['Nome']}")
                     display_member_details(membro_dict, "ficha_individual")
                     st.divider()
-
                     pdf_data_ficha = criar_pdf_ficha(membro_dict)
                     st.download_button(
                         label="📄 Exportar Ficha como PDF",
@@ -619,7 +590,7 @@ else:
         else:
             st.warning("Não há membros cadastrados para gerar fichas.")
 
-    # --- ABA DE EDIÇÃO ATUALIZADA ---
+    # --- ABA DE EDIÇÃO COM FORMULÁRIO EXPANSÍVEL ---
     with tab6:
         st.header("Editar Dados do Membro")
 
@@ -638,18 +609,17 @@ else:
             # Aplicar filtros
             if termo_busca_edicao:
                 df_membros_edicao = df_membros_edicao[df_membros_edicao.apply(lambda row: termo_busca_edicao in str(row.get('Nome', '')).upper() or termo_busca_edicao in str(row.get('CPF', '')), axis=1)]
-
             if len(data_nasc_range) == 2:
                 df_membros_edicao['Data de Nascimento_dt'] = pd.to_datetime(df_membros_edicao['Data de Nascimento'], format='%d/%m/%Y', errors='coerce')
                 df_membros_edicao = df_membros_edicao.dropna(subset=['Data de Nascimento_dt'])
                 df_membros_edicao = df_membros_edicao[(df_membros_edicao['Data de Nascimento_dt'].dt.date >= data_nasc_range[0]) & (df_membros_edicao['Data de Nascimento_dt'].dt.date <= data_nasc_range[1])]
-
             if len(data_adm_range) == 2:
                 df_membros_edicao['Data de Admissao_dt'] = pd.to_datetime(df_membros_edicao['Data de Admissao'], format='%d/%m/%Y', errors='coerce')
                 df_membros_edicao = df_membros_edicao.dropna(subset=['Data de Admissao_dt'])
                 df_membros_edicao = df_membros_edicao[(df_membros_edicao['Data de Admissao_dt'].dt.date >= data_adm_range[0]) & (df_membros_edicao['Data de Admissao_dt'].dt.date <= data_adm_range[1])]
 
             st.divider()
+            
             # Cabeçalho da lista
             col_h1, col_h2, col_h3, col_h4, col_h5, col_h6 = st.columns([1, 5, 2, 2, 2, 2])
             with col_h1: st.markdown("**Editar**")
@@ -661,73 +631,87 @@ else:
 
             # Lista de membros para edição
             for index, membro in df_membros_edicao.iterrows():
-                col_edit, col_nome, col_cpf, col_nasc, col_adm, col_forma = st.columns([1, 5, 2, 2, 2, 2])
-                with col_edit:
-                    if st.button("✏️", key=f"edit_btn_{index}", help=f"Editar {membro.get('Nome')}"):
-                        st.session_state.editing_member_index = index
-                        st.session_state.show_edit_modal = True
-                        # A remoção do st.rerun() aqui torna a chamada mais estável
-                
-                with col_nome:
-                    status_icon = '🟢' if str(membro.get('Status', '')).upper() == 'ATIVO' else '🔴' if str(membro.get('Status', '')).upper() == 'INATIVO' else '⚪'
-                    st.write(f"{status_icon} {membro.get('Nome', '')}")
+                with st.container(border=True):
+                    col_edit, col_nome, col_cpf, col_nasc, col_adm, col_forma = st.columns([1, 5, 2, 2, 2, 2])
+                    with col_edit:
+                        if st.button("✏️", key=f"edit_btn_{index}", help=f"Editar {membro.get('Nome')}"):
+                            if st.session_state.editing_member_key == index:
+                                st.session_state.editing_member_key = None # Fecha se já estiver aberto
+                            else:
+                                st.session_state.editing_member_key = index # Abre para edição
+                            st.rerun()
+                    
+                    with col_nome:
+                        status_icon = '🟢' if str(membro.get('Status', '')).upper() == 'ATIVO' else '🔴' if str(membro.get('Status', '')).upper() == 'INATIVO' else '⚪'
+                        st.write(f"{status_icon} {membro.get('Nome', '')}")
 
-                with col_cpf: st.write(membro.get("CPF", ""))
-                with col_nasc: st.write(membro.get("Data de Nascimento", ""))
-                with col_adm: st.write(membro.get("Data de Admissao", ""))
-                with col_forma: st.write(membro.get("Forma de Admissao", ""))
+                    with col_cpf: st.write(membro.get("CPF", ""))
+                    with col_nasc: st.write(membro.get("Data de Nascimento", ""))
+                    with col_adm: st.write(membro.get("Data de Admissao", ""))
+                    with col_forma: st.write(membro.get("Forma de Admissao", ""))
+
+                    # <<< MUDANÇA AQUI: Formulário de edição dentro da lista
+                    if st.session_state.editing_member_key == index:
+                        st.session_state.editing_member_index = index
+                        membro_para_editar = membro
+
+                        st.divider()
+                        with st.form(key=f"edit_form_{index}"):
+                            st.subheader(f"Editando dados de: {membro_para_editar.get('Nome')}")
+                            
+                            try:
+                                data_nasc_obj = datetime.strptime(membro_para_editar.get("Data de Nascimento"), '%d/%m/%Y').date() if membro_para_editar.get("Data de Nascimento") else None
+                                data_conv_obj = datetime.strptime(membro_para_editar.get("Data de Conversao"), '%d/%m/%Y').date() if membro_para_editar.get("Data de Conversao") else None
+                                data_adm_obj = datetime.strptime(membro_para_editar.get("Data de Admissao"), '%d/%m/%Y').date() if membro_para_editar.get("Data de Admissao") else None
+                            except (ValueError, TypeError):
+                                data_nasc_obj, data_conv_obj, data_adm_obj = None, None, None
+
+                            # Formulário com todos os campos
+                            c1, c2 = st.columns(2)
+                            with c1:
+                                st.text_input("Nome", value=membro_para_editar.get("Nome"), key="edit_nome")
+                                st.text_input("CPF", value=membro_para_editar.get("CPF"), key="edit_cpf")
+                                st.selectbox("Estado Civil", ["", "Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)"], index=["", "Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)"].index(membro_para_editar.get("Estado Civil", "")), key="edit_estado_civil")
+                                st.selectbox("Forma de Admissão", ["", "Batismo", "Transferência", "Aclamação"], index=["", "Batismo", "Transferência", "Aclamação"].index(membro_para_editar.get("Forma de Admissao", "")), key="edit_forma_admissao")
+                                st.text_input("Nome do Pai", value=membro_para_editar.get("Nome do Pai"), key="edit_nome_pai")
+                                st.text_input("Nome da Mãe", value=membro_para_editar.get("Nome da Mae"), key="edit_nome_mae")
+                                st.text_input("Nome do(a) Cônjuge", value=membro_para_editar.get("Nome do(a) Cônjuge"), key="edit_conjuge")
+                            with c2:
+                                st.radio("Sexo", ["M", "F"], index=["M", "F"].index(membro_para_editar.get("Sexo", "M")), key="edit_sexo", horizontal=True)
+                                st.date_input("Data de Nascimento", value=data_nasc_obj, key="edit_data_nasc", format="DD/MM/YYYY")
+                                st.text_input("Profissão", value=membro_para_editar.get("Profissão"), key="edit_profissao")
+                                st.text_input("Celular", value=membro_para_editar.get("Celular"), key="edit_celular")
+                                st.selectbox("Nacionalidade", ["", "Brasileiro(a)", "Estrangeiro(a)"], index=["", "Brasileiro(a)", "Estrangeiro(a)"].index(membro_para_editar.get("Nacionalidade", "")), key="edit_nacionalidade")
+                                st.text_input("Naturalidade", value=membro_para_editar.get("Naturalidade"), key="edit_naturalidade")
+                                st.selectbox("UF (Naturalidade)", [""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"], index=([""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"]).index(membro_para_editar.get("UF (Naturalidade)", "")), key="edit_uf_nat")
+                            
+                            st.subheader("Endereço")
+                            c3, c4, c5, c6 = st.columns(4)
+                            with c3: st.text_input("CEP", value=membro_para_editar.get("CEP"), key="edit_cep")
+                            with c4: st.text_input("Endereço", value=membro_para_editar.get("Endereco"), key="edit_endereco")
+                            with c5: st.text_input("Bairro", value=membro_para_editar.get("Bairro"), key="edit_bairro")
+                            with c6: st.text_input("Cidade", value=membro_para_editar.get("Cidade"), key="edit_cidade")
+                            
+                            st.subheader("Informações Adicionais")
+                            c7, c8 = st.columns(2)
+                            with c7:
+                                st.selectbox("Grau de Instrução", ["", "Fundamental Incompleto", "Fundamental Completo", "Médio Incompleto", "Médio Completo", "Superior Incompleto", "Superior Completo", "Pós-graduação", "Mestrado", "Doutorado"], index=["", "Fundamental Incompleto", "Fundamental Completo", "Médio Incompleto", "Médio Completo", "Superior Incompleto", "Superior Completo", "Pós-graduação", "Mestrado", "Doutorado"].index(membro_para_editar.get("Grau de Instrução", "")), key="edit_grau_ins")
+                                st.selectbox("Status", ["Ativo", "Inativo"], index=["Ativo", "Inativo"].index(membro_para_editar.get("Status", "Ativo")), key="edit_status")
+                                st.date_input("Data de Conversão", value=data_conv_obj, key="edit_data_conv", format="DD/MM/YYYY")
+                                st.date_input("Data de Admissão", value=data_adm_obj, key="edit_data_adm", format="DD/MM/YYYY")
+                            with c8:
+                                st.text_area("Observações", value=membro_para_editar.get("Observações"), key="edit_observacoes", height=250)
+                            
+                            # Botões de ação do formulário
+                            st.divider()
+                            col_salvar, col_cancelar = st.columns(2)
+                            with col_salvar:
+                                if st.form_submit_button("💾 Salvar Alterações", use_container_width=True, type="primary"):
+                                    submeter_edicao_formulario()
+                                    st.rerun()
+                            with col_cancelar:
+                                if st.form_submit_button("❌ Cancelar", use_container_width=True):
+                                    st.session_state.editing_member_key = None
+                                    st.rerun()
         else:
             st.info("Nenhum membro encontrado com os filtros aplicados.")
-
-    # Modal de Edição (Pop-up) - Lógica de exibição principal
-    if st.session_state.get("show_edit_modal", False):
-        membro_para_editar = st.session_state.membros[st.session_state.editing_member_index]
-        
-        # <<< MUDANÇA AQUI: Usando st.experimental_dialog para máxima compatibilidade
-        with st.experimental_dialog("Editar Ficha do Membro"):
-            with st.form("form_edicao_membro"):
-                st.subheader(f"Editando: {membro_para_editar.get('Nome')}")
-                
-                try:
-                    data_nasc_obj = datetime.strptime(membro_para_editar.get("Data de Nascimento"), '%d/%m/%Y').date() if membro_para_editar.get("Data de Nascimento") else None
-                    data_conv_obj = datetime.strptime(membro_para_editar.get("Data de Conversao"), '%d/%m/%Y').date() if membro_para_editar.get("Data de Conversao") else None
-                    data_adm_obj = datetime.strptime(membro_para_editar.get("Data de Admissao"), '%d/%m/%Y').date() if membro_para_editar.get("Data de Admissao") else None
-                except (ValueError, TypeError):
-                    data_nasc_obj, data_conv_obj, data_adm_obj = None, None, None
-
-                st.text_input("Nome", value=membro_para_editar.get("Nome"), key="edit_nome")
-                st.text_input("CPF", value=membro_para_editar.get("CPF"), key="edit_cpf")
-                st.text_input("Celular", value=membro_para_editar.get("Celular"), key="edit_celular")
-                st.date_input("Data de Nascimento", value=data_nasc_obj, key="edit_data_nasc", format="DD/MM/YYYY")
-                st.date_input("Data de Admissão", value=data_adm_obj, key="edit_data_adm", format="DD/MM/YYYY")
-                st.selectbox("Forma de Admissão", ["", "Batismo", "Transferência", "Aclamação"], index=["", "Batismo", "Transferência", "Aclamação"].index(membro_para_editar.get("Forma de Admissao", "")), key="edit_forma_admissao")
-                st.selectbox("Status", ["Ativo", "Inativo"], index=["Ativo", "Inativo"].index(membro_para_editar.get("Status", "Ativo")), key="edit_status")
-                
-                with st.expander("Ver/Editar todos os campos"):
-                    st.radio("Sexo", ["M", "F"], index=["M", "F"].index(membro_para_editar.get("Sexo", "M")), key="edit_sexo", horizontal=True)
-                    st.selectbox("Estado Civil", ["", "Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)"], index=["", "Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)"].index(membro_para_editar.get("Estado Civil", "")), key="edit_estado_civil")
-                    st.text_input("Profissão", value=membro_para_editar.get("Profissão"), key="edit_profissao")
-                    st.selectbox("Nacionalidade", ["", "Brasileiro(a)", "Estrangeiro(a)"], index=["", "Brasileiro(a)", "Estrangeiro(a)"].index(membro_para_editar.get("Nacionalidade", "")), key="edit_nacionalidade")
-                    st.text_input("Naturalidade", value=membro_para_editar.get("Naturalidade"), key="edit_naturalidade")
-                    st.selectbox("UF (Naturalidade)", [""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"], index=([""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"]).index(membro_para_editar.get("UF (Naturalidade)", "")), key="edit_uf_nat")
-                    st.text_input("Nome do Pai", value=membro_para_editar.get("Nome do Pai"), key="edit_nome_pai")
-                    st.text_input("Nome da Mãe", value=membro_para_editar.get("Nome da Mae"), key="edit_nome_mae")
-                    st.text_input("Nome do(a) Cônjuge", value=membro_para_editar.get("Nome do(a) Cônjuge"), key="edit_conjuge")
-                    st.text_input("CEP", value=membro_para_editar.get("CEP"), key="edit_cep")
-                    st.text_input("Endereço", value=membro_para_editar.get("Endereco"), key="edit_endereco")
-                    st.text_input("Bairro", value=membro_para_editar.get("Bairro"), key="edit_bairro")
-                    st.text_input("Cidade", value=membro_para_editar.get("Cidade"), key="edit_cidade")
-                    st.selectbox("UF (Endereço)", [""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"], index=([""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"]).index(membro_para_editar.get("UF (Endereco)", "")), key="edit_uf_end")
-                    st.selectbox("Grau de Instrução", ["", "Fundamental Incompleto", "Fundamental Completo", "Médio Incompleto", "Médio Completo", "Superior Incompleto", "Superior Completo", "Pós-graduação", "Mestrado", "Doutorado"], index=["", "Fundamental Incompleto", "Fundamental Completo", "Médio Incompleto", "Médio Completo", "Superior Incompleto", "Superior Completo", "Pós-graduação", "Mestrado", "Doutorado"].index(membro_para_editar.get("Grau de Instrução", "")), key="edit_grau_ins")
-                    st.date_input("Data de Conversão", value=data_conv_obj, key="edit_data_conv", format="DD/MM/YYYY")
-                    st.text_area("Observações", value=membro_para_editar.get("Observações"), key="edit_observacoes")
-
-                col_salvar, col_cancelar = st.columns(2)
-                with col_salvar:
-                    if st.form_submit_button("💾 Salvar Alterações", use_container_width=True, type="primary"):
-                        submeter_edicao_formulario()
-                        st.rerun() # Garante que a tela será atualizada após salvar
-                with col_cancelar:
-                    if st.form_submit_button("❌ Cancelar", use_container_width=True):
-                        st.session_state.show_edit_modal = False
-                        st.rerun()
