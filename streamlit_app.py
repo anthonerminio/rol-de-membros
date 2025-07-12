@@ -1,4 +1,4 @@
-# Versão Final e Corrigida - v5.9
+# Versão Final e Corrigida - v6.0 com Aba de Edição
 import streamlit as st
 import pandas as pd
 import gspread
@@ -13,7 +13,7 @@ from streamlit_oauth import OAuth2Component
 import jwt
 
 # --- 1) Configuração da página ---
-st.set_page_config(layout="wide", page_title="Fichário de Membros v5.9")
+st.set_page_config(layout="wide", page_title="Fichário de Membros v6.0")
 
 # --- A) Parâmetros de Login Google ---
 try:
@@ -216,6 +216,43 @@ def submeter_formulario():
         st.toast("Membro salvo com sucesso!", icon="🎉")
         limpar_formulario()
 
+def submeter_edicao_formulario():
+    index = st.session_state.editing_member_index
+    membro_editado = st.session_state.membros[index].copy()
+
+    # Atualiza o dicionário com os novos valores do formulário de edição
+    membro_editado.update({
+        "Nome": str(st.session_state.get("edit_nome", "")).strip().upper(),
+        "CPF": str(st.session_state.get("edit_cpf", "")).strip(),
+        "Sexo": st.session_state.get("edit_sexo", ""),
+        "Estado Civil": st.session_state.get("edit_estado_civil", ""),
+        "Profissão": str(st.session_state.get("edit_profissao", "")).strip().upper(),
+        "Forma de Admissao": st.session_state.get("edit_forma_admissao", ""),
+        "Data de Nascimento": st.session_state.edit_data_nasc.strftime('%d/%m/%Y') if st.session_state.edit_data_nasc else "",
+        "Nacionalidade": st.session_state.get("edit_nacionalidade", ""),
+        "Naturalidade": str(st.session_state.get("edit_naturalidade", "")).strip().upper(),
+        "UF (Naturalidade)": st.session_state.get("edit_uf_nat", ""),
+        "Nome do Pai": str(st.session_state.get("edit_nome_pai", "")).strip().upper(),
+        "Nome da Mae": str(st.session_state.get("edit_nome_mae", "")).strip().upper(),
+        "Nome do(a) Cônjuge": str(st.session_state.get("edit_conjuge", "")).strip().upper(),
+        "CEP": str(st.session_state.get("edit_cep", "")).strip(),
+        "Endereco": str(st.session_state.get("edit_endereco", "")).strip().upper(),
+        "Bairro": str(st.session_state.get("edit_bairro", "")).strip().upper(),
+        "Cidade": str(st.session_state.get("edit_cidade", "")).strip().upper(),
+        "UF (Endereco)": st.session_state.get("edit_uf_end", ""),
+        "Grau de Instrução": st.session_state.get("edit_grau_ins", ""),
+        "Celular": str(st.session_state.get("edit_celular", "")).strip(),
+        "Data de Conversao": st.session_state.edit_data_conv.strftime('%d/%m/%Y') if st.session_state.edit_data_conv else "",
+        "Data de Admissao": st.session_state.edit_data_adm.strftime('%d/%m/%Y') if st.session_state.edit_data_adm else "",
+        "Status": st.session_state.get("edit_status", ""),
+        "Observações": st.session_state.get("edit_observacoes", "").strip()
+    })
+
+    st.session_state.membros[index] = membro_editado
+    salvar_membros(st.session_state.membros)
+    st.toast("Dados salvos com sucesso!", icon="👍")
+    st.session_state.show_edit_modal = False
+
 def confirmar_mudanca_status():
     chaves_para_atualizar = st.session_state.chaves_para_status
     novo_status_val = st.session_state.novo_status
@@ -256,6 +293,12 @@ def init_state():
             st.session_state.selecao_lista = set()
         if "selecao_busca" not in st.session_state:
             st.session_state.selecao_busca = set()
+        
+        # Novas variáveis de estado para a aba de edição
+        if "editing_member_index" not in st.session_state:
+            st.session_state.editing_member_index = None
+        if "show_edit_modal" not in st.session_state:
+            st.session_state.show_edit_modal = False
 
         for key in MAP_KEYS.values():
             if key not in st.session_state: st.session_state[key] = None if "data" in key else ""
@@ -334,7 +377,7 @@ else:
             st.rerun()
     st.divider()
 
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Cadastro", "Lista de Membros", "Busca e Ações", "Aniversariantes", "Ficha Individual"])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Cadastro", "Lista de Membros", "Busca e Ações", "Aniversariantes", "Ficha Individual", "✏️ Editar Membro"])
 
     with tab1:
         st.header("Cadastro de Novos Membros")
@@ -584,3 +627,112 @@ else:
                     )
         else:
             st.warning("Não há membros cadastrados para gerar fichas.")
+
+    # --- NOVA ABA DE EDIÇÃO ---
+    with tab6:
+        st.header("Editar Dados do Membro")
+
+        # Filtros
+        col_filtro1, col_filtro2, col_filtro3 = st.columns(3)
+        with col_filtro1:
+            termo_busca_edicao = st.text_input("Buscar por Nome ou CPF", key="edit_search_term", placeholder="Digite para buscar...").upper()
+        with col_filtro2:
+            data_nasc_range = st.date_input("Filtrar por Data de Nascimento", value=(), key="edit_dob_range", min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY")
+        with col_filtro3:
+            data_adm_range = st.date_input("Filtrar por Data de Admissão", value=(), key="edit_adm_range", min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY")
+
+        df_membros_edicao = pd.DataFrame(st.session_state.membros)
+
+        if not df_membros_edicao.empty:
+            # Aplicar filtros
+            if termo_busca_edicao:
+                df_membros_edicao = df_membros_edicao[df_membros_edicao.apply(lambda row: termo_busca_edicao in str(row.get('Nome', '')).upper() or termo_busca_edicao in str(row.get('CPF', '')), axis=1)]
+
+            if len(data_nasc_range) == 2:
+                df_membros_edicao['Data de Nascimento_dt'] = pd.to_datetime(df_membros_edicao['Data de Nascimento'], format='%d/%m/%Y', errors='coerce')
+                df_membros_edicao = df_membros_edicao.dropna(subset=['Data de Nascimento_dt'])
+                df_membros_edicao = df_membros_edicao[(df_membros_edicao['Data de Nascimento_dt'].dt.date >= data_nasc_range[0]) & (df_membros_edicao['Data de Nascimento_dt'].dt.date <= data_nasc_range[1])]
+
+            if len(data_adm_range) == 2:
+                df_membros_edicao['Data de Admissao_dt'] = pd.to_datetime(df_membros_edicao['Data de Admissao'], format='%d/%m/%Y', errors='coerce')
+                df_membros_edicao = df_membros_edicao.dropna(subset=['Data de Admissao_dt'])
+                df_membros_edicao = df_membros_edicao[(df_membros_edicao['Data de Admissao_dt'].dt.date >= data_adm_range[0]) & (df_membros_edicao['Data de Admissao_dt'].dt.date <= data_adm_range[1])]
+
+            st.divider()
+            # Cabeçalho da lista
+            col_h1, col_h2, col_h3, col_h4, col_h5, col_h6 = st.columns([1, 4, 2, 2, 2, 2])
+            col_h1.markdown("**Editar**")
+            col_h2.markdown("**Nome Completo**")
+            col_h3.markdown("**CPF**")
+            col_h4.markdown("**Nascimento**")
+            col_h5.markdown("**Admissão**")
+            col_h6.markdown("**Forma**")
+
+            # Lista de membros para edição
+            for index, membro in df_membros_edicao.iterrows():
+                col_edit, col_nome, col_cpf, col_nasc, col_adm, col_forma = st.columns([1, 4, 2, 2, 2, 2])
+                with col_edit:
+                    if st.button("✏️", key=f"edit_btn_{index}", help=f"Editar {membro.get('Nome')}"):
+                        st.session_state.editing_member_index = index
+                        st.session_state.show_edit_modal = True
+                        st.rerun()
+                col_nome.write(membro.get("Nome", ""))
+                col_cpf.write(membro.get("CPF", ""))
+                col_nasc.write(membro.get("Data de Nascimento", ""))
+                col_adm.write(membro.get("Data de Admissao", ""))
+                col_forma.write(membro.get("Forma de Admissao", ""))
+        else:
+            st.info("Nenhum membro encontrado com os filtros aplicados.")
+
+        # Modal de Edição
+        if st.session_state.get("show_edit_modal", False):
+            membro_para_editar = st.session_state.membros[st.session_state.editing_member_index]
+            
+            with st.dialog("Editar Ficha do Membro", dismissed=False):
+                with st.form("form_edicao_membro"):
+                    st.subheader(f"Editando: {membro_para_editar.get('Nome')}")
+                    
+                    # Converte as datas de string para objeto date para os widgets
+                    try:
+                        data_nasc_obj = datetime.strptime(membro_para_editar.get("Data de Nascimento"), '%d/%m/%Y').date() if membro_para_editar.get("Data de Nascimento") else None
+                        data_conv_obj = datetime.strptime(membro_para_editar.get("Data de Conversao"), '%d/%m/%Y').date() if membro_para_editar.get("Data de Conversao") else None
+                        data_adm_obj = datetime.strptime(membro_para_editar.get("Data de Admissao"), '%d/%m/%Y').date() if membro_para_editar.get("Data de Admissao") else None
+                    except (ValueError, TypeError):
+                        data_nasc_obj, data_conv_obj, data_adm_obj = None, None, None
+
+                    # Campos do formulário pré-preenchidos
+                    st.text_input("Nome", value=membro_para_editar.get("Nome"), key="edit_nome")
+                    st.text_input("CPF", value=membro_para_editar.get("CPF"), key="edit_cpf")
+                    st.text_input("Celular", value=membro_para_editar.get("Celular"), key="edit_celular")
+                    st.date_input("Data de Nascimento", value=data_nasc_obj, key="edit_data_nasc", format="DD/MM/YYYY")
+                    st.date_input("Data de Admissão", value=data_adm_obj, key="edit_data_adm", format="DD/MM/YYYY")
+                    st.selectbox("Forma de Admissão", ["", "Batismo", "Transferência", "Aclamação"], index=["", "Batismo", "Transferência", "Aclamação"].index(membro_para_editar.get("Forma de Admissao", "")), key="edit_forma_admissao")
+                    st.selectbox("Status", ["Ativo", "Inativo"], index=["Ativo", "Inativo"].index(membro_para_editar.get("Status", "Ativo")), key="edit_status")
+                    
+                    with st.expander("Ver/Editar todos os campos"):
+                        st.radio("Sexo", ["M", "F"], index=["M", "F"].index(membro_para_editar.get("Sexo", "M")), key="edit_sexo", horizontal=True)
+                        st.selectbox("Estado Civil", ["", "Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)"], index=["", "Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)"].index(membro_para_editar.get("Estado Civil", "")), key="edit_estado_civil")
+                        st.text_input("Profissão", value=membro_para_editar.get("Profissão"), key="edit_profissao")
+                        st.selectbox("Nacionalidade", ["", "Brasileiro(a)", "Estrangeiro(a)"], index=["", "Brasileiro(a)", "Estrangeiro(a)"].index(membro_para_editar.get("Nacionalidade", "")), key="edit_nacionalidade")
+                        st.text_input("Naturalidade", value=membro_para_editar.get("Naturalidade"), key="edit_naturalidade")
+                        st.selectbox("UF (Naturalidade)", [""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"], index=([""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"]).index(membro_para_editar.get("UF (Naturalidade)", "")), key="edit_uf_nat")
+                        st.text_input("Nome do Pai", value=membro_para_editar.get("Nome do Pai"), key="edit_nome_pai")
+                        st.text_input("Nome da Mãe", value=membro_para_editar.get("Nome da Mae"), key="edit_nome_mae")
+                        st.text_input("Nome do(a) Cônjuge", value=membro_para_editar.get("Nome do(a) Cônjuge"), key="edit_conjuge")
+                        st.text_input("CEP", value=membro_para_editar.get("CEP"), key="edit_cep")
+                        st.text_input("Endereço", value=membro_para_editar.get("Endereco"), key="edit_endereco")
+                        st.text_input("Bairro", value=membro_para_editar.get("Bairro"), key="edit_bairro")
+                        st.text_input("Cidade", value=membro_para_editar.get("Cidade"), key="edit_cidade")
+                        st.selectbox("UF (Endereço)", [""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"], index=([""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"]).index(membro_para_editar.get("UF (Endereco)", "")), key="edit_uf_end")
+                        st.selectbox("Grau de Instrução", ["", "Fundamental Incompleto", "Fundamental Completo", "Médio Incompleto", "Médio Completo", "Superior Incompleto", "Superior Completo", "Pós-graduação", "Mestrado", "Doutorado"], index=["", "Fundamental Incompleto", "Fundamental Completo", "Médio Incompleto", "Médio Completo", "Superior Incompleto", "Superior Completo", "Pós-graduação", "Mestrado", "Doutorado"].index(membro_para_editar.get("Grau de Instrução", "")), key="edit_grau_ins")
+                        st.date_input("Data de Conversão", value=data_conv_obj, key="edit_data_conv", format="DD/MM/YYYY")
+                        st.text_area("Observações", value=membro_para_editar.get("Observações"), key="edit_observacoes")
+
+                    # Botões de ação do formulário
+                    col_salvar, col_cancelar = st.columns(2)
+                    with col_salvar:
+                        st.form_submit_button("💾 Salvar Alterações", use_container_width=True, type="primary", on_click=submeter_edicao_formulario)
+                    with col_cancelar:
+                        if st.form_submit_button("❌ Cancelar", use_container_width=True):
+                            st.session_state.show_edit_modal = False
+                            st.rerun()
