@@ -1,4 +1,4 @@
-# Versão Final e Corrigida - v5.1
+# Versão Final e Corrigida - v5.2
 import streamlit as st
 import pandas as pd
 import gspread
@@ -13,7 +13,7 @@ from streamlit_oauth import OAuth2Component
 import jwt
 
 # --- 1) Configuração da página ---
-st.set_page_config(layout="wide", page_title="Fichário de Membros v5.1")
+st.set_page_config(layout="wide", page_title="Fichário de Membros v5.2")
 
 # --- A) Parâmetros de Login Google ---
 try:
@@ -37,7 +37,6 @@ except (KeyError, FileNotFoundError):
 def criar_pdf_lista(df):
     pdf = FPDF(orientation='L', unit='mm', format='A4')
     pdf.add_page()
-    # Adicionando uma fonte que suporte caracteres latinos estendidos
     pdf.add_font("DejaVu", "", "fonts/DejaVuSans.ttf", uni=True)
     pdf.set_font("DejaVu", size=8)
     cols = df.columns
@@ -56,7 +55,7 @@ def criar_pdf_lista(df):
         pdf.ln(line_height)
     return bytes(pdf.output())
 
-# <-- NOVO: Função de PDF para aniversariantes com separação por status
+# <-- ALTERAÇÃO: Layout do PDF de aniversariantes foi redesenhado para um formato mais limpo.
 def criar_pdf_aniversariantes_com_status(ativos_df, inativos_df, outros_df, mes_nome):
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.add_page()
@@ -70,13 +69,12 @@ def criar_pdf_aniversariantes_com_status(ativos_df, inativos_df, outros_df, mes_
             pdf.set_font('DejaVu', size=14)
             pdf.cell(0, 10, title, 0, 1, 'L')
             pdf.ln(2)
-            pdf.set_font('DejaVu', size=12)
-            pdf.cell(130, 10, 'Nome Completo', 1, 0, 'C')
-            pdf.cell(60, 10, 'Data de Nascimento', 1, 1, 'C')
             pdf.set_font('DejaVu', size=11)
             for _, row in df_section.iterrows():
-                pdf.cell(130, 10, str(row['Nome Completo']), 1, 0, 'L')
-                pdf.cell(60, 10, str(row['Data de Nascimento Completa']), 1, 1, 'C')
+                # Layout de linha mais limpo, sem bordas
+                pdf.cell(20, 8, f"Dia {row['Dia']:02d}", 0, 0, 'R')
+                pdf.cell(5, 8, " - ", 0, 0, 'C')
+                pdf.multi_cell(0, 8, str(row['Nome Completo']), 0, 'L')
             pdf.ln(5)
 
     draw_section("🟢 Aniversariantes Ativos", ativos_df)
@@ -85,6 +83,7 @@ def criar_pdf_aniversariantes_com_status(ativos_df, inativos_df, outros_df, mes_
 
     return bytes(pdf.output())
 
+# <-- ALTERAÇÃO: Adicionado o campo de Observações na ficha individual em PDF.
 def criar_pdf_ficha(membro):
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.add_page()
@@ -117,6 +116,16 @@ def criar_pdf_ficha(membro):
     pdf.ln(5)
     draw_section_header("⛪ Dados Eclesiásticos")
     draw_field("Status", membro.get("Status")); draw_field("Forma de Admissão", membro.get("Forma de Admissao")); draw_field("Data de Admissão", membro.get("Data de Admissao")); draw_field("Data de Conversão", membro.get("Data de Conversao"))
+    pdf.ln(5)
+    
+    # <-- NOVO: Seção de Observações adicionada ao PDF.
+    draw_section_header("📝 Observações")
+    obs_text = membro.get("Observações", "Nenhuma observação registrada.")
+    if not isinstance(obs_text, str) or not obs_text.strip():
+        obs_text = "Nenhuma observação registrada."
+    pdf.set_font('DejaVu', size=10)
+    pdf.multi_cell(0, 7, obs_text, 0, 'L')
+    
     return bytes(pdf.output())
 
 # --- Funções de Dados (Google Sheets) ---
@@ -349,7 +358,6 @@ else:
             col1_metric.metric("Total de Membros", f"{total_membros} 👥"); col2_metric.metric("Membros Ativos", f"{ativos} 🟢"); col3_metric.metric("Membros Inativos", f"{inativos} 🔴"); col4_metric.metric("Status Não Definido", f"{sem_status} ⚪")
             st.divider()
 
-            # Ações visíveis, sem expander
             st.subheader("Ações para Itens Selecionados na Lista")
             sem_selecao_lista = not st.session_state.get("selecao_lista", set())
             col_ativo, col_inativo = st.columns(2)
@@ -372,7 +380,6 @@ else:
 
             st.divider()
 
-            # Lista de membros
             st.session_state.selecao_lista = set()
             for index, membro in df_membros_tab2.iterrows():
                 with st.container(border=True):
@@ -383,7 +390,6 @@ else:
                     with col_info:
                         status_icon = '🟢' if str(membro.get('Status')).upper() == 'ATIVO' else '🔴' if str(membro.get('Status')).upper() == 'INATIVO' else '⚪'
                         st.subheader(f"{status_icon} {membro.get('Nome')}")
-                        # <-- ALTERAÇÃO: Adicionadas forma e data de admissão à legenda.
                         tipo_adm = membro.get('Forma de Admissao', 'N/A')
                         data_adm = membro.get('Data de Admissao', 'N/A')
                         st.caption(f"CPF: {membro.get('CPF', 'N/A')} | Celular: {membro.get('Celular', 'N/A')} | Admissão: {tipo_adm} em {data_adm}")
@@ -408,7 +414,6 @@ else:
             if data_filtro:
                 data_filtro_str = data_filtro.strftime('%d/%m/%Y'); df_filtrado = df_filtrado[df_filtrado['Data de Nascimento'] == data_filtro_str]
 
-            # Ações visíveis, sem expander
             st.divider()
             st.subheader("Ações para Itens Selecionados na Busca")
             sem_selecao_busca = not st.session_state.get("selecao_busca", set())
@@ -418,7 +423,6 @@ else:
                     st.session_state.chaves_para_excluir = st.session_state.selecao_busca
                     st.session_state.confirmando_exclusao = True; st.rerun()
 
-            # Prepara dados para exportação
             if not df_original.empty and st.session_state.get("selecao_busca"):
                 df_para_exportar = df_original[df_original.apply(lambda row: (row['Nome'], row['Data de Nascimento']) in st.session_state.selecao_busca, axis=1)].reindex(columns=HEADERS)
                 output_excel = BytesIO();
@@ -475,27 +479,36 @@ else:
                 else:
                     st.markdown(f"### Aniversariantes de {mes_selecionado}")
 
-                    # Filtrar por status
                     ativos_df = aniversariantes_df[aniversariantes_df['Status'].str.upper() == 'ATIVO']
                     inativos_df = aniversariantes_df[aniversariantes_df['Status'].str.upper() == 'INATIVO']
                     outros_df = aniversariantes_df[~aniversariantes_df['Status'].str.upper().isin(['ATIVO', 'INATIVO'])]
-
-                    df_display_cols = {'Dia': 'Dia', 'Nome': 'Nome Completo', 'Data de Nascimento': 'Data de Nascimento Completa'}
+                    
+                    # <-- ALTERAÇÃO: A exibição em dataframe foi substituída por cards.
+                    def display_birthday_cards(df):
+                        for _, row in df.iterrows():
+                            with st.container(border=True):
+                                c1, c2 = st.columns([1, 4])
+                                with c1:
+                                    st.metric(label="Dia", value=f"{row['Dia']:02d}")
+                                with c2:
+                                    st.markdown(f"**{row['Nome']}**")
+                                    st.caption(f"Data de Nascimento: {row['Data de Nascimento']}")
 
                     if not ativos_df.empty:
                         st.markdown("#### 🟢 Aniversariantes Ativos")
-                        st.dataframe(ativos_df[['Dia', 'Nome', 'Data de Nascimento']].rename(columns=df_display_cols), use_container_width=True, hide_index=True)
+                        display_birthday_cards(ativos_df)
 
                     if not inativos_df.empty:
                         st.markdown("#### 🔴 Aniversariantes Inativos")
-                        st.dataframe(inativos_df[['Dia', 'Nome', 'Data de Nascimento']].rename(columns=df_display_cols), use_container_width=True, hide_index=True)
+                        display_birthday_cards(inativos_df)
 
                     if not outros_df.empty:
                         st.markdown("#### ⚪ Aniversariantes com Status Não Definido")
-                        st.dataframe(outros_df[['Dia', 'Nome', 'Data de Nascimento']].rename(columns=df_display_cols), use_container_width=True, hide_index=True)
+                        display_birthday_cards(outros_df)
 
                     st.markdown("---")
-                    # <-- ALTERAÇÃO: Chamando a nova função de PDF que separa por status
+                    
+                    df_display_cols = {'Dia': 'Dia', 'Nome': 'Nome Completo', 'Data de Nascimento': 'Data de Nascimento Completa'}
                     pdf_data = criar_pdf_aniversariantes_com_status(
                         ativos_df.rename(columns=df_display_cols),
                         inativos_df.rename(columns=df_display_cols),
