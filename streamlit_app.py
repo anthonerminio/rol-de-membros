@@ -1,4 +1,4 @@
-# Versão Final e Corrigida - v5.6
+# Versão Final e Corrigida - v5.7
 import streamlit as st
 import pandas as pd
 import gspread
@@ -13,7 +13,7 @@ from streamlit_oauth import OAuth2Component
 import jwt
 
 # --- 1) Configuração da página ---
-st.set_page_config(layout="wide", page_title="Fichário de Membros v5.6")
+st.set_page_config(layout="wide", page_title="Fichário de Membros v5.7")
 
 # --- A) Parâmetros de Login Google ---
 try:
@@ -34,28 +34,33 @@ except (KeyError, FileNotFoundError):
 
 
 # --- Funções Auxiliares de Exportação ---
-def criar_pdf_lista(df):
+
+# <-- ATUALIZAÇÃO: Nova função de PDF específica para a exportação em massa da Aba de Busca.
+def criar_pdf_exportacao_busca(df):
     pdf = FPDF(orientation='L', unit='mm', format='A4')
     pdf.add_page()
     pdf.add_font("DejaVu", "", "fonts/DejaVuSans.ttf", uni=True)
-    pdf.set_font("DejaVu", size=8)
-    cols = df.columns
-    col_widths = {'Nome': 45, 'CPF': 25, 'Data de Nascimento': 22, 'Celular': 25, 'Estado Civil': 22, 'Profissão': 25}
-    line_height = pdf.font_size * 2.5
-    pdf.set_font_size(10)
+    pdf.set_font("DejaVu", size=10)
+    
+    # Define as colunas e suas larguras
+    cols = ["Nome", "Data de Nascimento", "Forma de Admissao", "Data de Admissao", "Data de Conversao", "Celular"]
+    col_widths = {'Nome': 70, 'Data de Nascimento': 30, 'Forma de Admissao': 35, 'Data de Admissao': 35, 'Data de Conversao': 35, 'Celular': 30}
+    line_height = pdf.font_size * 2
+    
+    # Cabeçalho
     for col in cols:
-        width = col_widths.get(col, 18)
-        pdf.cell(width, line_height, col, border=1, ln=0, align='C')
+        pdf.cell(col_widths.get(col, 30), line_height, col, border=1, ln=0, align='C')
     pdf.ln(line_height)
-    pdf.set_font_size(7)
-    for index, row in df.iterrows():
+    
+    # Dados
+    pdf.set_font("DejaVu", size=8)
+    for _, row in df.iterrows():
         for col in cols:
-            width = col_widths.get(col, 18)
-            pdf.cell(width, line_height, str(row[col]), border=1, ln=0, align='L')
+            pdf.cell(col_widths.get(col, 30), line_height, str(row[col]), border=1, ln=0, align='L')
         pdf.ln(line_height)
+        
     return bytes(pdf.output())
 
-# <-- ATUALIZAÇÃO: Layout do PDF de aniversariantes com o dia antes do nome.
 def criar_pdf_aniversariantes_com_status(ativos_df, inativos_df, outros_df, mes_nome):
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.add_page()
@@ -174,11 +179,6 @@ def salvar_membros(lista):
             ws.append_rows(rows, value_input_option="USER_ENTERED")
     except Exception as e:
         st.error(f"Erro ao salvar: {e}")
-
-def formatar_datas(df, colunas):
-    for col in colunas:
-        if col in df.columns: df[col] = pd.to_datetime(df[col], errors="coerce", dayfirst=True).dt.strftime("%d/%m/%Y")
-    return df
 
 def buscar_cep(cep):
     cep = re.sub(r"[^\d]", "", cep)
@@ -333,7 +333,7 @@ else:
 
     with tab1:
         st.header("Cadastro de Novos Membros")
-        # Sem alterações nesta aba
+        # Sem alterações
         with st.form("form_membro"):
             st.subheader("Informações Pessoais"); c1, c2 = st.columns(2)
             with c1:
@@ -369,7 +369,7 @@ else:
 
     with tab2:
         st.header("Visão Geral da Membresia")
-        # Sem alterações nesta aba
+        # Sem alterações
         if "membros" in st.session_state and st.session_state.membros:
             df_membros_tab2 = pd.DataFrame(st.session_state.membros)
             total_membros = len(df_membros_tab2); ativos = len(df_membros_tab2[df_membros_tab2['Status'].str.upper() == 'ATIVO']); inativos = len(df_membros_tab2[df_membros_tab2['Status'].str.upper() == 'INATIVO']); sem_status = total_membros - ativos - inativos
@@ -439,14 +439,16 @@ else:
             st.divider()
             
             st.subheader("Ações para Itens Selecionados")
-            sem_selecao_busca = not st.session_state.get("selecao_busca", set())
             
-            if st.button("🗑️ Excluir Selecionados", use_container_width=True, disabled=sem_selecao_busca, key="tab3_excluir", type="primary"):
+            # <-- ATUALIZAÇÃO: Botão de exclusão desabilitado se a seleção não for exatamente 1.
+            selecao_count = len(st.session_state.get("selecao_busca", set()))
+            if st.button("🗑️ Excluir Membro", use_container_width=True, disabled=(selecao_count != 1), key="tab3_excluir", type="primary"):
                 st.session_state.chaves_para_excluir = st.session_state.selecao_busca
                 st.session_state.confirmando_exclusao = True
+            st.caption("Para excluir, selecione exatamente 1 membro na lista de resultados abaixo.")
 
             if st.session_state.get('confirmando_exclusao', False):
-                st.warning(f"Deseja realmente deletar os {len(st.session_state.chaves_para_excluir)} itens selecionados?")
+                st.warning(f"Deseja realmente deletar o membro selecionado?")
                 c1, c2 = st.columns(2)
                 if c1.button("Sim, excluir definitivamente", use_container_width=True):
                     membros_atualizados = [m for m in st.session_state.membros if (m.get('Nome'), m.get('Data de Nascimento')) not in st.session_state.chaves_para_excluir]
@@ -456,28 +458,34 @@ else:
                     for key in st.session_state.keys():
                         if key.startswith("select_search_"):
                             st.session_state[key] = False
-                    st.success("Registros excluídos!"); st.rerun()
+                    st.success("Registro excluído!"); st.rerun()
                 if c2.button("Não, voltar", use_container_width=True):
                     st.session_state.confirmando_exclusao, st.session_state.chaves_para_excluir = False, set(); st.rerun()
 
-            # <-- ATUALIZAÇÃO: Layout da seção de exportação corrigido e separado da exclusão.
             st.markdown("---")
-            st.subheader("Exportar Seleção")
+            st.subheader("Exportar Seleção em Massa")
+
+            # <-- ATUALIZAÇÃO: Definição das colunas específicas para exportação.
+            EXPORT_HEADERS_BUSCA = ["Nome", "Data de Nascimento", "Forma de Admissao", "Data de Admissao", "Data de Conversao", "Celular"]
 
             if not df_original.empty and st.session_state.get("selecao_busca"):
-                df_para_exportar = df_original[df_original.apply(lambda row: (row['Nome'], row['Data de Nascimento']) in st.session_state.selecao_busca, axis=1)].reindex(columns=HEADERS)
+                df_para_exportar = df_original[df_original.apply(lambda row: (row['Nome'], row['Data de Nascimento']) in st.session_state.selecao_busca, axis=1)]
+                # Filtra o dataframe para conter apenas as colunas desejadas
+                df_para_exportar = df_para_exportar[EXPORT_HEADERS_BUSCA]
+                
                 output_excel = BytesIO();
                 with pd.ExcelWriter(output_excel, engine='openpyxl') as writer: df_para_exportar.to_excel(writer, index=False, sheet_name='Membros')
                 excel_data = output_excel.getvalue()
-                pdf_data = criar_pdf_lista(df_para_exportar)
+                
+                pdf_data = criar_pdf_exportacao_busca(df_para_exportar)
             else:
                 excel_data, pdf_data = b"", b""
             
             col_excel, col_pdf = st.columns(2)
             with col_excel:
-                st.download_button("📄 Exportar Excel", excel_data, "membros_selecionados.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True, disabled=sem_selecao_busca)
+                st.download_button("📄 Exportar Excel", excel_data, "exportacao_membros.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True, disabled=not st.session_state.get("selecao_busca"))
             with col_pdf:
-                st.download_button("📕 Exportar PDF", pdf_data, "membros_selecionados.pdf", "application/pdf", use_container_width=True, disabled=sem_selecao_busca)
+                st.download_button("📕 Exportar PDF", pdf_data, "exportacao_membros.pdf", "application/pdf", use_container_width=True, disabled=not st.session_state.get("selecao_busca"))
 
             st.markdown("---")
             
@@ -501,6 +509,7 @@ else:
 
     with tab4:
         st.header("Aniversariantes do Mês")
+        # Sem alterações
         if "membros" in st.session_state and st.session_state.membros:
             df_membros = pd.DataFrame(st.session_state.membros)
             df_membros['Data de Nascimento_dt'] = pd.to_datetime(df_membros['Data de Nascimento'], format='%d/%m/%Y', errors='coerce')
@@ -526,7 +535,6 @@ else:
                     
                     df_display_cols = {'Nome': 'Nome Completo', 'Data de Nascimento': 'Data de Nascimento Completa'}
 
-                    # <-- ATUALIZAÇÃO: Layout para mostrar o dia ANTES do nome.
                     def display_birthday_section(title, df_section, icon):
                         if not df_section.empty:
                             st.markdown(f"#### {icon} {title}")
@@ -552,7 +560,7 @@ else:
 
     with tab5:
         st.header("Gerar Ficha Individual de Membro")
-        # Sem alterações nesta aba
+        # Sem alterações
         if "membros" in st.session_state and st.session_state.membros:
             lista_nomes = [""] + sorted([m.get("Nome", "") for m in st.session_state.membros if m.get("Nome")])
             membro_selecionado_nome = st.selectbox("Selecione ou digite o nome do membro para gerar a ficha:", options=lista_nomes, placeholder="Selecione um membro...", index=0)
