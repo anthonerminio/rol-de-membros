@@ -1,4 +1,4 @@
-# Fichario de Membros PIB Gaibu - v7.3 (Totalmente Otimizado)
+# Fichario de Membros PIB Gaibu - v7.4 (Estável com Otimizações Seguras)
 import streamlit as st
 import pandas as pd
 import gspread
@@ -13,7 +13,7 @@ from streamlit_oauth import OAuth2Component
 import jwt
 
 # --- 1) Configuração da página ---
-st.set_page_config(layout="wide", page_title="Fichário de Membros v7.3")
+st.set_page_config(layout="wide", page_title="Fichário de Membros v7.4")
 
 # --- A) Parâmetros de Login Google ---
 try:
@@ -33,7 +33,7 @@ except (KeyError, FileNotFoundError):
     st.stop()
 
 
-# --- Funções Auxiliares de Exportação (Lógica Estável) ---
+# --- Funções Auxiliares de Exportação (Lógica Estável da v7.2) ---
 def criar_pdf_exportacao_busca(df):
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.add_page()
@@ -43,13 +43,13 @@ def criar_pdf_exportacao_busca(df):
     except RuntimeError:
         FONT = "Arial"
 
-    pdf.set_font(FONT, size=16)
+    pdf.set_font(FONT, 'B', 16)
     pdf.cell(0, 10, "Relatório de Membros Selecionados", 0, 1, 'C')
     pdf.ln(10)
     for _, row in df.iterrows():
-        pdf.set_font(FONT, size=12)
+        pdf.set_font(FONT, 'B', 12)
         pdf.cell(0, 8, str(row["Nome"]).encode('latin-1', 'replace').decode('latin-1'), 0, 1, 'L')
-        pdf.set_font(FONT, size=10)
+        pdf.set_font(FONT, '', 10)
         def write_field(label, value):
             text = f"  - {label}: {str(value)}".encode('latin-1', 'replace').decode('latin-1')
             pdf.cell(0, 6, text, 0, 1, 'L')
@@ -65,15 +65,15 @@ def criar_pdf_aniversariantes_com_status(ativos_df, inativos_df, outros_df, mes_
         FONT = "DejaVu"
     except RuntimeError:
         FONT = "Arial"
-    pdf.set_font(FONT, size=16)
+    pdf.set_font(FONT, 'B', 16)
     pdf.cell(0, 10, f'Aniversariantes de {mes_nome}'.encode('latin-1', 'replace').decode('latin-1'), 0, 1, 'C')
     pdf.ln(10)
     def draw_section(title, df_section):
         if not df_section.empty:
-            pdf.set_font(FONT, '', size=14)
+            pdf.set_font(FONT, 'B', 14)
             pdf.cell(0, 10, title.encode('latin-1', 'replace').decode('latin-1'), 0, 1, 'L')
             pdf.ln(2)
-            pdf.set_font(FONT, '', size=11)
+            pdf.set_font(FONT, '', 11)
             for _, row in df_section.iterrows():
                 nome_completo = str(row.get('Nome Completo', '')); data_nasc = str(row.get('Data de Nascimento Completa', ''))
                 dia = data_nasc.split('/')[0] if '/' in data_nasc else data_nasc
@@ -90,20 +90,20 @@ def criar_pdf_ficha(membro):
         FONT = "DejaVu"
     except RuntimeError:
         FONT = "Arial"
-    pdf.set_font(FONT, size=16)
+    pdf.set_font(FONT, 'B', 16)
     pdf.cell(0, 10, 'Ficha Individual de Membro - PIB Gaibu'.encode('latin-1', 'replace').decode('latin-1'), 0, 1, 'C')
-    pdf.set_font(FONT, size=14)
+    pdf.set_font(FONT, 'B', 14)
     pdf.cell(0, 10, membro.get("Nome", "").encode('latin-1', 'replace').decode('latin-1'), 0, 1, 'C')
     pdf.ln(5)
     def draw_field(label, value):
         if value and str(value).strip():
-            pdf.set_font(FONT, 'B', size=10)
+            pdf.set_font(FONT, 'B', 10)
             pdf.cell(50, 7, f"{label}:".encode('latin-1', 'replace').decode('latin-1'), 0, 0, 'L')
-            pdf.set_font(FONT, '', size=10)
+            pdf.set_font(FONT, '', 10)
             pdf.multi_cell(0, 7, str(value).encode('latin-1', 'replace').decode('latin-1'), 0, 'L')
             pdf.ln(2)
     def draw_section_header(title):
-        pdf.set_font(FONT, 'B', size=12)
+        pdf.set_font(FONT, 'B', 12)
         pdf.cell(0, 10, title.encode('latin-1', 'replace').decode('latin-1'), 0, 1, 'L')
         pdf.line(10, pdf.get_y(), 200, pdf.get_y())
         pdf.ln(4)
@@ -169,7 +169,7 @@ def buscar_cep(cep):
     except Exception: pass
     return None
 
-MAP_KEYS = {"Nome": "nome", "CPF": "cpf", "Sexo": "sexo", "Estado Civil": "estado_civil", "Profissão": "profissao", "Forma de Admissao": "forma_admissao", "Data de Nascimento": "data_nasc", "Nacionalidade": "nacionalidade", "Naturalidade": "naturalidade", "UF (Naturalidade)": "uf_nat", "Nome do Pai": "nome_pai", "Nome da Mae": "nome_mae", "Nome do(a) Cônjuge": "conjuge", "CEP": "cep_form", "Endereco": "endereco", "Bairro": "bairro", "Cidade": "cidade", "UF (Endereco)": "uf_end", "Grau de Instrução": "grau_ins", "Celular": "celular", "Data de Conversao": "data_conv", "Data de Admissao": "data_adm", "Status": "status", "Observações": "observacoes"}
+MAP_KEYS = {"Nome": "nome", "CPF": "cpf", "Sexo": "sexo", "Estado Civil": "estado_civil", "Profissão": "profissao", "Forma de Admissao": "forma_admissao", "Data de Nascimento": "data_nasc", "Nacionalidade": "nacionalidade", "Naturalidade": "naturalidade", "UF (Naturalidade)": "uf_nat", "Nome do Pai": "nome_pai", "Nome da Mae": "nome_mae", "Nome do(a) Cônjuge": "conjuge", "CEP": "cep", "Endereco": "endereco", "Bairro": "bairro", "Cidade": "cidade", "UF (Endereco)": "uf_end", "Grau de Instrução": "grau_ins", "Celular": "celular", "Data de Conversao": "data_conv", "Data de Admissao": "data_adm", "Status": "status", "Observações": "observacoes"}
 
 def limpar_formulario():
     for key in MAP_KEYS.values():
@@ -177,19 +177,16 @@ def limpar_formulario():
     st.session_state.sexo = "M"
 
 def submeter_formulario():
-    novo = {"Nome": str(st.session_state.get("nome", "")).strip().upper(), "CPF": str(st.session_state.get("cpf", "")).strip().upper(), "Sexo": st.session_state.get("sexo", ""), "Estado Civil": st.session_state.get("estado_civil", ""), "Profissão": str(st.session_state.get("profissao", "")).strip().upper(), "Forma de Admissao": st.session_state.get("forma_admissao", ""), "Data de Nascimento": st.session_state.data_nasc.strftime('%d/%m/%Y') if st.session_state.data_nasc else "", "Nacionalidade": st.session_state.get("nacionalidade", ""), "Naturalidade": str(st.session_state.get("naturalidade", "")).strip().upper(), "UF (Naturalidade)": st.session_state.get("uf_nat", ""), "Nome do Pai": str(st.session_state.get("nome_pai", "")).strip().upper(), "Nome da Mae": str(st.session_state.get("nome_mae", "")).strip().upper(), "Nome do(a) Cônjuge": str(st.session_state.get("conjuge", "")).strip().upper(), "CEP": str(st.session_state.get("cep_form", "")).strip().upper(), "Endereco": str(st.session_state.get("endereco", "")).strip().upper(), "Bairro": str(st.session_state.get("bairro", "")).strip().upper(), "Cidade": str(st.session_state.get("cidade", "")).strip().upper(), "UF (Endereco)": st.session_state.get("uf_end", ""), "Grau de Instrução": st.session_state.get("grau_ins", ""), "Celular": str(st.session_state.get("celular", "")).strip().upper(), "Data de Conversao": st.session_state.data_conv.strftime('%d/%m/%Y') if st.session_state.data_conv else "", "Data de Admissao": st.session_state.data_adm.strftime('%d/%m/%Y') if st.session_state.data_adm else "", "Status": st.session_state.get("status", ""), "Observações": st.session_state.get("observacoes", "").strip()}
+    novo = {"Nome": str(st.session_state.get("nome", "")).strip().upper(), "CPF": str(st.session_state.get("cpf", "")).strip().upper(), "Sexo": st.session_state.get("sexo", ""), "Estado Civil": st.session_state.get("estado_civil", ""), "Profissão": str(st.session_state.get("profissao", "")).strip().upper(), "Forma de Admissao": st.session_state.get("forma_admissao", ""), "Data de Nascimento": st.session_state.data_nasc.strftime('%d/%m/%Y') if st.session_state.data_nasc else "", "Nacionalidade": st.session_state.get("nacionalidade", ""), "Naturalidade": str(st.session_state.get("naturalidade", "")).strip().upper(), "UF (Naturalidade)": st.session_state.get("uf_nat", ""), "Nome do Pai": str(st.session_state.get("nome_pai", "")).strip().upper(), "Nome da Mae": str(st.session_state.get("nome_mae", "")).strip().upper(), "Nome do(a) Cônjuge": str(st.session_state.get("conjuge", "")).strip().upper(), "CEP": str(st.session_state.get("cep", "")).strip().upper(), "Endereco": str(st.session_state.get("endereco", "")).strip().upper(), "Bairro": str(st.session_state.get("bairro", "")).strip().upper(), "Cidade": str(st.session_state.get("cidade", "")).strip().upper(), "UF (Endereco)": st.session_state.get("uf_end", ""), "Grau de Instrução": st.session_state.get("grau_ins", ""), "Celular": str(st.session_state.get("celular", "")).strip().upper(), "Data de Conversao": st.session_state.data_conv.strftime('%d/%m/%Y') if st.session_state.data_conv else "", "Data de Admissao": st.session_state.data_adm.strftime('%d/%m/%Y') if st.session_state.data_adm else "", "Status": st.session_state.get("status", ""), "Observações": st.session_state.get("observacoes", "").strip()}
     cpf_digitado = novo.get("CPF")
-    if cpf_digitado and any(str(m.get("CPF")) == cpf_digitado for m in st.session_state.membros):
-        st.error("Já existe um membro cadastrado com este CPF.")
+    is_duplicado = False
+    if cpf_digitado: is_duplicado = any(str(m.get("CPF")) == cpf_digitado for m in st.session_state.membros)
+    if is_duplicado: st.error("Já existe um membro cadastrado com este CPF.")
     else:
         st.session_state.membros.append(novo)
         salvar_membros(st.session_state.membros)
         st.toast("Membro salvo com sucesso!", icon="🎉")
-        # Limpa os campos do formulário para o próximo cadastro
-        for key in MAP_KEYS.values():
-            if "data" in key: st.session_state[key] = None
-            else: st.session_state[key] = ""
-        st.session_state.sexo = "M"
+        limpar_formulario()
 
 def submeter_edicao_formulario():
     index = st.session_state.editing_member_index
@@ -216,6 +213,7 @@ def confirmar_mudanca_status():
     salvar_membros(st.session_state.membros)
     st.toast(f"Status de {len(chaves_para_atualizar)} membro(s) alterado com sucesso!", icon="👍")
     st.session_state.confirmando_status, st.session_state.chaves_para_status, st.session_state.obs_status = False, set(), ""
+    # Limpa a seleção após a ação
     st.session_state.selecao_lista = set()
     for key in st.session_state.keys():
         if key.startswith("select_list_"):
@@ -223,12 +221,6 @@ def confirmar_mudanca_status():
 
 def cancelar_mudanca_status():
     st.session_state.confirmando_status, st.session_state.chaves_para_status, st.session_state.obs_status = False, set(), ""
-
-def toggle_selection(member_key, checkbox_key, selection_key):
-    if st.session_state[checkbox_key]:
-        st.session_state[selection_key].add(member_key)
-    else:
-        st.session_state[selection_key].discard(member_key)
 
 def init_state():
     if "authenticated" not in st.session_state:
@@ -245,7 +237,6 @@ def init_state():
         for key in MAP_KEYS.values():
             if key not in st.session_state: st.session_state[key] = None if "data" in key else ""
         if "sexo" not in st.session_state or not st.session_state.sexo: st.session_state.sexo = "M"
-        if "cep_lookup" not in st.session_state: st.session_state.cep_lookup = ""
 
 def display_member_details(membro_dict, context_prefix):
     def display_field(label, value):
@@ -305,40 +296,37 @@ else:
 
     with tab1:
         st.header("Cadastro de Novos Membros")
-        # OTIMIZAÇÃO: Busca de CEP fora do formulário
-        st.subheader("1. Busque o Endereço (Opcional)")
-        col_cep, col_btn_cep = st.columns([1, 3])
-        with col_cep:
-            st.text_input("CEP", key="cep_lookup")
-        with col_btn_cep:
-            if st.button("🔎 Buscar Endereço por CEP"):
-                dados_cep = buscar_cep(st.session_state.cep_lookup)
-                if dados_cep:
-                    st.session_state.update(dados_cep) # Popula o estado da sessão com os dados do endereço
-                    st.session_state.cep_form = st.session_state.cep_lookup # Copia o CEP para o campo do form
-                    st.toast("Endereço encontrado! Preencha o resto do formulário.", icon="🏠")
-                else:
-                    st.warning("CEP não encontrado ou inválido.")
-        st.divider()
-
-        st.subheader("2. Preencha e Salve os Dados do Membro")
-        with st.form("form_membro", clear_on_submit=True):
+        # REVERSÃO: Lógica do CEP volta para dentro do formulário, como na v7.2
+        with st.form("form_membro"):
             st.subheader("Informações Pessoais"); c1, c2 = st.columns(2)
-            with c1: st.text_input("Nome", key="nome"); st.text_input("CPF", key="cpf"); st.selectbox("Estado Civil", ["", "Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)"], key="estado_civil"); st.selectbox("Forma de Admissao", ["", "Batismo", "Transferência", "Aclamação"], key="forma_admissao")
-            with c2: st.radio("Sexo", ["M", "F"], key="sexo", horizontal=True); st.date_input("Data de Nascimento", key="data_nasc", value=None, min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY"); st.text_input("Profissão", key="profissao"); st.text_input("Celular", key="celular")
+            with c1:
+                st.text_input("Nome", key="nome"); st.text_input("CPF", key="cpf"); st.selectbox("Estado Civil", ["", "Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)"], key="estado_civil"); st.selectbox("Forma de Admissao", ["", "Batismo", "Transferência", "Aclamação"], key="forma_admissao")
+            with c2:
+                st.radio("Sexo", ["M", "F"], key="sexo", horizontal=True); st.date_input("Data de Nascimento", key="data_nasc", value=None, min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY"); st.text_input("Profissão", key="profissao"); st.text_input("Celular", key="celular")
             st.subheader("Filiação e Origem"); c3, c4 = st.columns(2)
-            with c3: st.text_input("Nome do Pai", key="nome_pai"); st.text_input("Nome da Mãe", key="nome_mae"); st.text_input("Nome do(a) Cônjuge", key="conjuge")
-            with c4: st.selectbox("Nacionalidade", ["", "Brasileiro(a)", "Estrangeiro(a)"], key="nacionalidade"); st.text_input("Naturalidade", key="naturalidade"); st.selectbox("UF (Naturalidade)", [""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"], key="uf_nat")
-            st.subheader("Endereço (preenchido pela busca de CEP)"); c5, c6, c7, c8 = st.columns(4)
-            # Esses campos agora usam os valores do estado da sessão como padrão
-            with c5: st.text_input("CEP", key="cep_form")
-            with c6: st.text_input("Endereço", key="endereco")
-            with c7: st.text_input("Bairro", key="bairro")
-            with c8: st.text_input("Cidade", key="cidade")
-            st.selectbox("UF (Endereço)", [""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"], key="uf_end")
+            with c3:
+                st.text_input("Nome do Pai", key="nome_pai"); st.text_input("Nome da Mãe", key="nome_mae"); st.text_input("Nome do(a) Cônjuge", key="conjuge")
+            with c4:
+                st.selectbox("Nacionalidade", ["", "Brasileiro(a)", "Estrangeiro(a)"], key="nacionalidade"); st.text_input("Naturalidade", key="naturalidade"); st.selectbox("UF (Naturalidade)", [""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"], key="uf_nat")
+            st.subheader("Endereço"); col_cep, col_btn_cep, col_spacer = st.columns([1,1,2])
+            with col_cep: st.text_input("CEP", key="cep")
+            with col_btn_cep:
+                if st.form_submit_button("🔎 Buscar CEP"):
+                    dados_cep = buscar_cep(st.session_state.cep)
+                    if dados_cep:
+                        st.session_state.update(dados_cep)
+                        st.toast("Endereço preenchido!", icon="🏠")
+                    elif st.session_state.cep: st.warning("CEP não encontrado ou inválido.")
+            c7, c8, c9, c10 = st.columns(4)
+            with c7: st.text_input("Endereco", key="endereco")
+            with c8: st.text_input("Bairro", key="bairro")
+            with c9: st.text_input("Cidade", key="cidade")
+            with c10: st.selectbox("UF (Endereco)", [""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"], key="uf_end")
             st.subheader("Informações Adicionais"); c11, c12, c13 = st.columns(3)
-            with c11: st.selectbox("Grau de Instrução", ["", "Fundamental Incompleto", "Fundamental Completo", "Médio Incompleto", "Médio Completo", "Superior Incompleto", "Superior Completo", "Pós-graduação", "Mestrado", "Doutorado"], key="grau_ins"); st.selectbox("Status", ["Ativo", "Inativo"], key="status")
-            with c12: st.date_input("Data de Conversao", key="data_conv", value=None, min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY"); st.date_input("Data de Admissao", key="data_adm", value=None, min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY")
+            with c11:
+                st.selectbox("Grau de Instrução", ["", "Fundamental Incompleto", "Fundamental Completo", "Médio Incompleto", "Médio Completo", "Superior Incompleto", "Superior Completo", "Pós-graduação", "Mestrado", "Doutorado"], key="grau_ins"); st.selectbox("Status", ["Ativo", "Inativo"], key="status")
+            with c12:
+                st.date_input("Data de Conversao", key="data_conv", value=None, min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY"); st.date_input("Data de Admissao", key="data_adm", value=None, min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY")
             with c13: st.text_area("Observações", key="observacoes")
             st.markdown("---"); st.form_submit_button("💾 Salvar Membro", on_click=submeter_formulario)
 
@@ -350,6 +338,8 @@ else:
             col1_metric, col2_metric, col3_metric, col4_metric = st.columns(4)
             col1_metric.metric("Total de Membros", f"{total_membros} 👥"); col2_metric.metric("Membros Ativos", f"{ativos} 🟢"); col3_metric.metric("Membros Inativos", f"{inativos} 🔴"); col4_metric.metric("Status Não Definido", f"{sem_status} ⚪")
             st.divider()
+            # REVERSÃO: Lógica de seleção simples e estável
+            selecao_atual = set()
             st.subheader("Ações para Itens Selecionados na Lista")
             col_ativo, col_inativo = st.columns(2)
             with col_ativo:
@@ -369,15 +359,16 @@ else:
             for index, membro in df_membros_tab2.iterrows():
                 with st.container(border=True):
                     col_selecao, col_info = st.columns([1, 15])
-                    member_key = (membro.get('Nome'), membro.get('Data de Nascimento')); checkbox_key = f"select_list_{index}"
                     with col_selecao:
-                        st.checkbox("", key=checkbox_key, label_visibility="collapsed", on_change=toggle_selection, args=(member_key, checkbox_key, "selecao_lista"))
+                        if st.checkbox("", key=f"select_list_{index}", label_visibility="collapsed"):
+                            selecao_atual.add((membro.get('Nome'), membro.get('Data de Nascimento')))
                     with col_info:
                         status_icon = '🟢' if str(membro.get('Status')).upper() == 'ATIVO' else '🔴' if str(membro.get('Status')).upper() == 'INATIVO' else '⚪'
                         st.subheader(f"{status_icon} {membro.get('Nome')}")
                         st.caption(f"CPF: {membro.get('CPF', 'N/A')} | Celular: {membro.get('Celular', 'N/A')} | Admissão: {membro.get('Forma de Admissao', 'N/A')} em {membro.get('Data de Admissao', 'N/A')}")
                         with st.expander("Ver Todos os Detalhes"):
                             display_member_details(membro, f"list_{index}")
+            st.session_state.selecao_lista = selecao_atual
         else: st.info("Nenhum membro cadastrado.")
 
     with tab3:
@@ -394,6 +385,12 @@ else:
             if data_filtro: df_filtrado = df_filtrado[df_filtrado['Data de Nascimento'] == data_filtro.strftime('%d/%m/%Y')]
             st.divider()
             st.subheader("Ações para Itens Selecionados")
+            # REVERSÃO: Lógica de seleção simples e estável
+            selecao_busca_atual = set()
+            for index, membro in df_filtrado.iterrows():
+                if st.session_state.get(f"select_search_{index}", False):
+                     selecao_busca_atual.add((membro.get('Nome'), membro.get('Data de Nascimento')))
+            st.session_state.selecao_busca = selecao_busca_atual
             sem_selecao_busca = not st.session_state.selecao_busca
             if st.button("🗑️ Excluir Selecionados", use_container_width=True, disabled=sem_selecao_busca, key="tab3_excluir", type="primary"):
                 st.session_state.chaves_para_excluir = st.session_state.selecao_busca.copy(); st.session_state.confirmando_exclusao = True
@@ -403,8 +400,7 @@ else:
                 if c1.button("Sim, excluir definitivamente", use_container_width=True):
                     membros_atualizados = [m for m in st.session_state.membros if (m.get('Nome'), m.get('Data de Nascimento')) not in st.session_state.chaves_para_excluir]
                     st.session_state.membros = membros_atualizados; salvar_membros(membros_atualizados)
-                    st.session_state.confirmando_exclusao, st.session_state.chaves_para_excluir = False, set()
-                    st.session_state.selecao_busca = set()
+                    st.session_state.confirmando_exclusao, st.session_state.chaves_para_excluir, st.session_state.selecao_busca = False, set(), set()
                     for key in list(st.session_state.keys()):
                         if key.startswith("select_search_"): st.session_state[key] = False
                     st.success("Registros excluídos!")
@@ -413,7 +409,7 @@ else:
             st.markdown("---")
             st.subheader("Exportar Seleção em Massa")
             df_para_exportar = pd.DataFrame()
-            if not df_original.empty and st.session_state.get("selecao_busca"):
+            if not df_original.empty and st.session_state.selecao_busca:
                 df_para_exportar = df_original[df_original.apply(lambda row: (row['Nome'], row['Data de Nascimento']) in st.session_state.selecao_busca, axis=1)][["Nome", "Data de Nascimento", "Forma de Admissao", "Data de Admissao", "Data de Conversao", "Celular"]]
             excel_data = b""; pdf_data = b""
             if not df_para_exportar.empty:
@@ -429,9 +425,8 @@ else:
                 for index, membro in df_filtrado.iterrows():
                     with st.container(border=True):
                         col_selecao_b, col_info_b = st.columns([1, 15])
-                        member_key = (membro.get('Nome'), membro.get('Data de Nascimento')); checkbox_key = f"select_search_{index}"
                         with col_selecao_b:
-                            st.checkbox("", key=checkbox_key, label_visibility="collapsed", on_change=toggle_selection, args=(member_key, checkbox_key, "selecao_busca"))
+                            st.checkbox("", key=f"select_search_{index}", label_visibility="collapsed")
                         with col_info_b:
                             status_icon = '🟢' if str(membro.get('Status')).upper() == 'ATIVO' else '🔴' if str(membro.get('Status')).upper() == 'INATIVO' else '⚪'
                             st.subheader(f"{status_icon} {membro.get('Nome')}"); st.caption(f"CPF: {membro.get('CPF')} | Data de Admissão: {membro.get('Data de Admissao')}")
@@ -517,7 +512,7 @@ else:
                             c1, c2 = st.columns(2)
                             with c1: st.text_input("Nome", value=membro_para_editar.get("Nome"), key="edit_nome"); st.text_input("CPF", value=membro_para_editar.get("CPF"), key="edit_cpf"); st.selectbox("Estado Civil", estado_civil_options, index=get_safe_index(estado_civil_options, membro_para_editar.get("Estado Civil")), key="edit_estado_civil"); st.text_input("Nome do Pai", value=membro_para_editar.get("Nome do Pai"), key="edit_nome_pai"); st.text_input("Nome da Mãe", value=membro_para_editar.get("Nome da Mae"), key="edit_nome_mae")
                             with c2: st.radio("Sexo", sexo_options, index=get_safe_index(sexo_options, membro_para_editar.get("Sexo", "M")), key="edit_sexo", horizontal=True); st.date_input("Data de Nascimento", value=data_nasc_obj, key="edit_data_nasc", format="DD/MM/YYYY"); st.text_input("Profissão", value=membro_para_editar.get("Profissão"), key="edit_profissao"); st.text_input("Celular", value=membro_para_editar.get("Celular"), key="edit_celular"); st.selectbox("Nacionalidade", nacionalidade_options, index=get_safe_index(nacionalidade_options, membro_para_editar.get("Nacionalidade")), key="edit_nacionalidade")
-                            st.subheader("Endereço"); c3, c4, c5 = st.columns(3)
+                            st.subheader("Endereço"); c3, c4, c5 = st.columns(3);
                             with c3: st.text_input("CEP", value=membro_para_editar.get("CEP"), key="edit_cep");
                             with c4: st.text_input("Endereço", value=membro_para_editar.get("Endereco"), key="edit_endereco")
                             with c5: st.text_input("Bairro", value=membro_para_editar.get("Bairro"), key="edit_bairro")
