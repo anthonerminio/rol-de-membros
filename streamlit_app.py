@@ -1,4 +1,4 @@
-# Versão Final - v7.1 (Exportação Direta na Lista)
+# Versão Final - v7.2 (Correção de NameError)
 import streamlit as st
 import pandas as pd
 import gspread
@@ -13,7 +13,7 @@ from streamlit_oauth import OAuth2Component
 import jwt
 
 # --- 1) Configuração da página ---
-st.set_page_config(layout="wide", page_title="Fichário de Membros v7.1")
+st.set_page_config(layout="wide", page_title="Fichário de Membros v7.2")
 
 # --- A) Parâmetros de Login Google ---
 try:
@@ -297,6 +297,44 @@ def init_state():
             if key not in st.session_state: st.session_state[key] = None if "data" in key else ""
         if "sexo" not in st.session_state or not st.session_state.sexo: st.session_state.sexo = "M"
 
+# <<< CORREÇÃO AQUI: A função display_member_details foi adicionada novamente.
+def display_member_details(membro_dict, context_prefix):
+    """Função para exibir os detalhes de um membro em colunas."""
+    def display_field(label, value):
+        if value and str(value).strip(): st.markdown(f"**{label}:** {value}")
+    st.markdown("##### 👤 Dados Pessoais")
+    c1, c2 = st.columns(2)
+    with c1:
+        display_field("CPF", membro_dict.get("CPF")); display_field("Sexo", membro_dict.get("Sexo")); display_field("Estado Civil", membro_dict.get("Estado Civil"))
+    with c2:
+        display_field("Data de Nascimento", membro_dict.get("Data de Nascimento")); display_field("Celular", membro_dict.get("Celular")); display_field("Profissão", membro_dict.get("Profissão"))
+    st.divider()
+    st.markdown("##### 👨‍👩‍👧 Filiação e Origem")
+    c3, c4 = st.columns(2)
+    with c3:
+        display_field("Nome do Pai", membro_dict.get("Nome do Pai")); display_field("Nome da Mãe", membro_dict.get("Nome da Mae"))
+    with c4:
+        display_field("Nome do(a) Cônjuge", membro_dict.get("Nome do(a) Cônjuge")); display_field("Nacionalidade", membro_dict.get("Nacionalidade")); display_field("Naturalidade", membro_dict.get("Naturalidade"))
+    st.divider()
+    st.markdown("##### 🏠 Endereço")
+    c5, c6 = st.columns(2)
+    with c5:
+        display_field("CEP", membro_dict.get("CEP")); display_field("Endereço", membro_dict.get("Endereco"))
+    with c6:
+        display_field("Bairro", membro_dict.get("Bairro")); display_field("Cidade", membro_dict.get("Cidade")); display_field("UF", membro_dict.get("UF (Endereco)"))
+    st.divider()
+    st.markdown("##### ⛪ Dados Eclesiásticos")
+    c7, c8 = st.columns(2)
+    with c7:
+        display_field("Status", membro_dict.get("Status")); display_field("Forma de Admissão", membro_dict.get("Forma de Admissao"))
+    with c8:
+        display_field("Data de Admissão", membro_dict.get("Data de Admissao")); display_field("Data de Conversão", membro_dict.get("Data de Conversao"))
+    st.divider()
+    st.markdown("##### 📝 Observações")
+    obs = membro_dict.get("Observações")
+    if obs and obs.strip():
+        st.text_area("", value=obs, height=100, disabled=True, label_visibility="collapsed", key=f"obs_{context_prefix}")
+
 # --- C) Lógica Principal de Exibição ---
 init_state()
 if not st.session_state.get("authenticated", False):
@@ -410,7 +448,8 @@ else:
                         tipo_adm = membro.get('Forma de Admissao', 'N/A')
                         data_adm = membro.get('Data de Admissao', 'N/A')
                         st.caption(f"CPF: {membro.get('CPF', 'N/A')} | Celular: {membro.get('Celular', 'N/A')} | Admissão: {tipo_adm} em {data_adm}")
-                        with st.expander("Ver Todos os Detalhes"): display_member_details(membro, f"list_{index}")
+                        with st.expander("Ver Todos os Detalhes"): 
+                            display_member_details(membro, f"list_{index}")
             st.session_state.selecao_lista = selecao_atual
         else:
             st.info("Nenhum membro cadastrado.")
@@ -527,10 +566,8 @@ else:
         else:
             st.info("Não há membros cadastrados para gerar a lista de aniversariantes.")
 
-    # --- ABA UNIFICADA DE EDIÇÃO E EXPORTAÇÃO DE FICHA ---
     with tab5:
         st.header("Fichas de Membros")
-
         col_filtro1, col_filtro2, col_filtro3 = st.columns(3)
         with col_filtro1:
             termo_busca_edicao = st.text_input("Buscar por Nome ou CPF", key="edit_search_term", placeholder="Digite para buscar...").upper()
@@ -555,7 +592,6 @@ else:
 
             st.divider()
             
-            # <<< MUDANÇA AQUI: Nova estrutura de colunas do cabeçalho
             col_h1, col_h2, col_h3, col_h4, col_h5, col_h6, col_h7 = st.columns([1, 4, 2, 2, 2, 2, 1.5])
             with col_h1: st.markdown("**Ações**")
             with col_h2: st.markdown("**Nome Completo**")
@@ -567,7 +603,6 @@ else:
 
             for index, membro in df_membros_edicao.iterrows():
                 with st.container(border=True):
-                    # <<< MUDANÇA AQUI: Nova estrutura de colunas da lista
                     col_edit, col_nome, col_cpf, col_nasc, col_adm, col_forma, col_pdf = st.columns([1, 4, 2, 2, 2, 2, 1.5])
                     with col_edit:
                         if st.button("✏️", key=f"edit_btn_{index}", help=f"Editar {membro.get('Nome')}"):
@@ -584,7 +619,6 @@ else:
                     with col_forma: st.write(membro.get("Forma de Admissao", ""))
                     
                     with col_pdf:
-                        # <<< MUDANÇA AQUI: Botão para imprimir PDF diretamente na linha
                         pdf_data = criar_pdf_ficha(membro)
                         st.download_button(
                             label="🖨️ PDF",
@@ -604,7 +638,7 @@ else:
                             
                             def get_safe_index(options, value):
                                 try: return options.index(value)
-                                except (ValueError, TypeError): return 0
+                                except (ValueError, TypeError): return 0 
                             
                             estado_civil_options, forma_admissao_options, sexo_options, nacionalidade_options, uf_options, grau_instrucao_options, status_options = ["", "Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)"], ["", "Batismo", "Transferência", "Aclamação"], ["M", "F"], ["", "Brasileiro(a)", "Estrangeiro(a)"], [""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"], ["", "Fundamental Incompleto", "Fundamental Completo", "Médio Incompleto", "Médio Completo", "Superior Incompleto", "Superior Completo", "Pós-graduação", "Mestrado", "Doutorado"], ["Ativo", "Inativo"]
 
