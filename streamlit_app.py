@@ -1,4 +1,4 @@
-# Versão Final e Corrigida - v6.1 com Status na Aba de Edição
+# Versão Final e Corrigida - v6.2 (Correção de Pop-up)
 import streamlit as st
 import pandas as pd
 import gspread
@@ -13,7 +13,7 @@ from streamlit_oauth import OAuth2Component
 import jwt
 
 # --- 1) Configuração da página ---
-st.set_page_config(layout="wide", page_title="Fichário de Membros v6.1")
+st.set_page_config(layout="wide", page_title="Fichário de Membros v6.2")
 
 # --- A) Parâmetros de Login Google ---
 try:
@@ -376,7 +376,6 @@ else:
 
     with tab1:
         st.header("Cadastro de Novos Membros")
-        # Nenhuma alteração
         with st.form("form_membro"):
             st.subheader("Informações Pessoais"); c1, c2 = st.columns(2)
             with c1:
@@ -412,7 +411,6 @@ else:
 
     with tab2:
         st.header("Visão Geral da Membresia")
-        # Nenhuma alteração
         if "membros" in st.session_state and st.session_state.membros:
             df_membros_tab2 = pd.DataFrame(st.session_state.membros)
             total_membros = len(df_membros_tab2); ativos = len(df_membros_tab2[df_membros_tab2['Status'].str.upper() == 'ATIVO']); inativos = len(df_membros_tab2[df_membros_tab2['Status'].str.upper() == 'INATIVO']); sem_status = total_membros - ativos - inativos
@@ -548,7 +546,6 @@ else:
 
     with tab4:
         st.header("Aniversariantes do Mês")
-        # Nenhuma alteração
         if "membros" in st.session_state and st.session_state.membros:
             df_membros = pd.DataFrame(st.session_state.membros)
             df_membros['Data de Nascimento_dt'] = pd.to_datetime(df_membros['Data de Nascimento'], format='%d/%m/%Y', errors='coerce')
@@ -599,7 +596,6 @@ else:
 
     with tab5:
         st.header("Gerar Ficha Individual de Membro")
-        # Nenhuma alteração
         if "membros" in st.session_state and st.session_state.membros:
             lista_nomes = [""] + sorted([m.get("Nome", "") for m in st.session_state.membros if m.get("Nome")])
             membro_selecionado_nome = st.selectbox("Selecione ou digite o nome do membro para gerar a ficha:", options=lista_nomes, placeholder="Selecione um membro...", index=0)
@@ -670,10 +666,9 @@ else:
                     if st.button("✏️", key=f"edit_btn_{index}", help=f"Editar {membro.get('Nome')}"):
                         st.session_state.editing_member_index = index
                         st.session_state.show_edit_modal = True
-                        st.rerun()
+                        # A remoção do st.rerun() aqui torna a chamada mais estável
                 
                 with col_nome:
-                    # <<< MUDANÇA AQUI: Adicionado ícone de status antes do nome
                     status_icon = '🟢' if str(membro.get('Status', '')).upper() == 'ATIVO' else '🔴' if str(membro.get('Status', '')).upper() == 'INATIVO' else '⚪'
                     st.write(f"{status_icon} {membro.get('Nome', '')}")
 
@@ -684,52 +679,55 @@ else:
         else:
             st.info("Nenhum membro encontrado com os filtros aplicados.")
 
-        # Modal de Edição (Pop-up)
-        if st.session_state.get("show_edit_modal", False):
-            membro_para_editar = st.session_state.membros[st.session_state.editing_member_index]
-            
-            with st.dialog("Editar Ficha do Membro", dismissible=False):
-                with st.form("form_edicao_membro"):
-                    st.subheader(f"Editando: {membro_para_editar.get('Nome')}")
-                    
-                    try:
-                        data_nasc_obj = datetime.strptime(membro_para_editar.get("Data de Nascimento"), '%d/%m/%Y').date() if membro_para_editar.get("Data de Nascimento") else None
-                        data_conv_obj = datetime.strptime(membro_para_editar.get("Data de Conversao"), '%d/%m/%Y').date() if membro_para_editar.get("Data de Conversao") else None
-                        data_adm_obj = datetime.strptime(membro_para_editar.get("Data de Admissao"), '%d/%m/%Y').date() if membro_para_editar.get("Data de Admissao") else None
-                    except (ValueError, TypeError):
-                        data_nasc_obj, data_conv_obj, data_adm_obj = None, None, None
+    # Modal de Edição (Pop-up) - Lógica de exibição principal
+    if st.session_state.get("show_edit_modal", False):
+        membro_para_editar = st.session_state.membros[st.session_state.editing_member_index]
+        
+        # <<< MUDANÇA AQUI: Usando st.experimental_dialog para máxima compatibilidade
+        with st.experimental_dialog("Editar Ficha do Membro"):
+            with st.form("form_edicao_membro"):
+                st.subheader(f"Editando: {membro_para_editar.get('Nome')}")
+                
+                try:
+                    data_nasc_obj = datetime.strptime(membro_para_editar.get("Data de Nascimento"), '%d/%m/%Y').date() if membro_para_editar.get("Data de Nascimento") else None
+                    data_conv_obj = datetime.strptime(membro_para_editar.get("Data de Conversao"), '%d/%m/%Y').date() if membro_para_editar.get("Data de Conversao") else None
+                    data_adm_obj = datetime.strptime(membro_para_editar.get("Data de Admissao"), '%d/%m/%Y').date() if membro_para_editar.get("Data de Admissao") else None
+                except (ValueError, TypeError):
+                    data_nasc_obj, data_conv_obj, data_adm_obj = None, None, None
 
-                    st.text_input("Nome", value=membro_para_editar.get("Nome"), key="edit_nome")
-                    st.text_input("CPF", value=membro_para_editar.get("CPF"), key="edit_cpf")
-                    st.text_input("Celular", value=membro_para_editar.get("Celular"), key="edit_celular")
-                    st.date_input("Data de Nascimento", value=data_nasc_obj, key="edit_data_nasc", format="DD/MM/YYYY")
-                    st.date_input("Data de Admissão", value=data_adm_obj, key="edit_data_adm", format="DD/MM/YYYY")
-                    st.selectbox("Forma de Admissão", ["", "Batismo", "Transferência", "Aclamação"], index=["", "Batismo", "Transferência", "Aclamação"].index(membro_para_editar.get("Forma de Admissao", "")), key="edit_forma_admissao")
-                    st.selectbox("Status", ["Ativo", "Inativo"], index=["Ativo", "Inativo"].index(membro_para_editar.get("Status", "Ativo")), key="edit_status")
-                    
-                    with st.expander("Ver/Editar todos os campos"):
-                        st.radio("Sexo", ["M", "F"], index=["M", "F"].index(membro_para_editar.get("Sexo", "M")), key="edit_sexo", horizontal=True)
-                        st.selectbox("Estado Civil", ["", "Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)"], index=["", "Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)"].index(membro_para_editar.get("Estado Civil", "")), key="edit_estado_civil")
-                        st.text_input("Profissão", value=membro_para_editar.get("Profissão"), key="edit_profissao")
-                        st.selectbox("Nacionalidade", ["", "Brasileiro(a)", "Estrangeiro(a)"], index=["", "Brasileiro(a)", "Estrangeiro(a)"].index(membro_para_editar.get("Nacionalidade", "")), key="edit_nacionalidade")
-                        st.text_input("Naturalidade", value=membro_para_editar.get("Naturalidade"), key="edit_naturalidade")
-                        st.selectbox("UF (Naturalidade)", [""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"], index=([""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"]).index(membro_para_editar.get("UF (Naturalidade)", "")), key="edit_uf_nat")
-                        st.text_input("Nome do Pai", value=membro_para_editar.get("Nome do Pai"), key="edit_nome_pai")
-                        st.text_input("Nome da Mãe", value=membro_para_editar.get("Nome da Mae"), key="edit_nome_mae")
-                        st.text_input("Nome do(a) Cônjuge", value=membro_para_editar.get("Nome do(a) Cônjuge"), key="edit_conjuge")
-                        st.text_input("CEP", value=membro_para_editar.get("CEP"), key="edit_cep")
-                        st.text_input("Endereço", value=membro_para_editar.get("Endereco"), key="edit_endereco")
-                        st.text_input("Bairro", value=membro_para_editar.get("Bairro"), key="edit_bairro")
-                        st.text_input("Cidade", value=membro_para_editar.get("Cidade"), key="edit_cidade")
-                        st.selectbox("UF (Endereço)", [""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"], index=([""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"]).index(membro_para_editar.get("UF (Endereco)", "")), key="edit_uf_end")
-                        st.selectbox("Grau de Instrução", ["", "Fundamental Incompleto", "Fundamental Completo", "Médio Incompleto", "Médio Completo", "Superior Incompleto", "Superior Completo", "Pós-graduação", "Mestrado", "Doutorado"], index=["", "Fundamental Incompleto", "Fundamental Completo", "Médio Incompleto", "Médio Completo", "Superior Incompleto", "Superior Completo", "Pós-graduação", "Mestrado", "Doutorado"].index(membro_para_editar.get("Grau de Instrução", "")), key="edit_grau_ins")
-                        st.date_input("Data de Conversão", value=data_conv_obj, key="edit_data_conv", format="DD/MM/YYYY")
-                        st.text_area("Observações", value=membro_para_editar.get("Observações"), key="edit_observacoes")
+                st.text_input("Nome", value=membro_para_editar.get("Nome"), key="edit_nome")
+                st.text_input("CPF", value=membro_para_editar.get("CPF"), key="edit_cpf")
+                st.text_input("Celular", value=membro_para_editar.get("Celular"), key="edit_celular")
+                st.date_input("Data de Nascimento", value=data_nasc_obj, key="edit_data_nasc", format="DD/MM/YYYY")
+                st.date_input("Data de Admissão", value=data_adm_obj, key="edit_data_adm", format="DD/MM/YYYY")
+                st.selectbox("Forma de Admissão", ["", "Batismo", "Transferência", "Aclamação"], index=["", "Batismo", "Transferência", "Aclamação"].index(membro_para_editar.get("Forma de Admissao", "")), key="edit_forma_admissao")
+                st.selectbox("Status", ["Ativo", "Inativo"], index=["Ativo", "Inativo"].index(membro_para_editar.get("Status", "Ativo")), key="edit_status")
+                
+                with st.expander("Ver/Editar todos os campos"):
+                    st.radio("Sexo", ["M", "F"], index=["M", "F"].index(membro_para_editar.get("Sexo", "M")), key="edit_sexo", horizontal=True)
+                    st.selectbox("Estado Civil", ["", "Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)"], index=["", "Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)"].index(membro_para_editar.get("Estado Civil", "")), key="edit_estado_civil")
+                    st.text_input("Profissão", value=membro_para_editar.get("Profissão"), key="edit_profissao")
+                    st.selectbox("Nacionalidade", ["", "Brasileiro(a)", "Estrangeiro(a)"], index=["", "Brasileiro(a)", "Estrangeiro(a)"].index(membro_para_editar.get("Nacionalidade", "")), key="edit_nacionalidade")
+                    st.text_input("Naturalidade", value=membro_para_editar.get("Naturalidade"), key="edit_naturalidade")
+                    st.selectbox("UF (Naturalidade)", [""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"], index=([""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"]).index(membro_para_editar.get("UF (Naturalidade)", "")), key="edit_uf_nat")
+                    st.text_input("Nome do Pai", value=membro_para_editar.get("Nome do Pai"), key="edit_nome_pai")
+                    st.text_input("Nome da Mãe", value=membro_para_editar.get("Nome da Mae"), key="edit_nome_mae")
+                    st.text_input("Nome do(a) Cônjuge", value=membro_para_editar.get("Nome do(a) Cônjuge"), key="edit_conjuge")
+                    st.text_input("CEP", value=membro_para_editar.get("CEP"), key="edit_cep")
+                    st.text_input("Endereço", value=membro_para_editar.get("Endereco"), key="edit_endereco")
+                    st.text_input("Bairro", value=membro_para_editar.get("Bairro"), key="edit_bairro")
+                    st.text_input("Cidade", value=membro_para_editar.get("Cidade"), key="edit_cidade")
+                    st.selectbox("UF (Endereço)", [""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"], index=([""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"]).index(membro_para_editar.get("UF (Endereco)", "")), key="edit_uf_end")
+                    st.selectbox("Grau de Instrução", ["", "Fundamental Incompleto", "Fundamental Completo", "Médio Incompleto", "Médio Completo", "Superior Incompleto", "Superior Completo", "Pós-graduação", "Mestrado", "Doutorado"], index=["", "Fundamental Incompleto", "Fundamental Completo", "Médio Incompleto", "Médio Completo", "Superior Incompleto", "Superior Completo", "Pós-graduação", "Mestrado", "Doutorado"].index(membro_para_editar.get("Grau de Instrução", "")), key="edit_grau_ins")
+                    st.date_input("Data de Conversão", value=data_conv_obj, key="edit_data_conv", format="DD/MM/YYYY")
+                    st.text_area("Observações", value=membro_para_editar.get("Observações"), key="edit_observacoes")
 
-                    col_salvar, col_cancelar = st.columns(2)
-                    with col_salvar:
-                        st.form_submit_button("💾 Salvar Alterações", use_container_width=True, type="primary", on_click=submeter_edicao_formulario)
-                    with col_cancelar:
-                        if st.form_submit_button("❌ Cancelar", use_container_width=True):
-                            st.session_state.show_edit_modal = False
-                            st.rerun()
+                col_salvar, col_cancelar = st.columns(2)
+                with col_salvar:
+                    if st.form_submit_button("💾 Salvar Alterações", use_container_width=True, type="primary"):
+                        submeter_edicao_formulario()
+                        st.rerun() # Garante que a tela será atualizada após salvar
+                with col_cancelar:
+                    if st.form_submit_button("❌ Cancelar", use_container_width=True):
+                        st.session_state.show_edit_modal = False
+                        st.rerun()
