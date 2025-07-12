@@ -55,27 +55,53 @@ def criar_pdf_lista(df):
         pdf.ln(line_height)
     return bytes(pdf.output())
 
+# <-- ATUALIZAÇÃO: Função de PDF para aniversariantes corrigida para evitar o erro de espaço horizontal.
 def criar_pdf_aniversariantes_com_status(ativos_df, inativos_df, outros_df, mes_nome):
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.add_page()
-    pdf.add_font("DejaVu", "", "fonts/DejaVuSans.ttf", uni=True)
+    # Garanta que o arquivo da fonte está no seu repositório em uma pasta 'fonts'
+    try:
+        pdf.add_font("DejaVu", "", "fonts/DejaVuSans.ttf", uni=True)
+    except RuntimeError:
+        st.error("Arquivo de fonte (DejaVuSans.ttf) não encontrado. Faça o upload para a pasta 'fonts' do seu projeto.")
+        # Fallback para uma fonte padrão para não quebrar a geração do PDF
+        pdf.set_font("Arial", size=16)
+
+    # Título principal
     pdf.set_font("DejaVu", size=16)
     pdf.cell(0, 10, f'Aniversariantes de {mes_nome}', 0, 1, 'C')
-    pdf.ln(5)
+    pdf.ln(10)
 
+    # Função interna para desenhar cada seção (Ativos, Inativos, etc.)
     def draw_section(title, df_section):
         if not df_section.empty:
-            pdf.set_font('DejaVu', size=14)
+            pdf.set_font('DejaVu', 'B', size=14)  # Título da seção em negrito
             pdf.cell(0, 10, title, 0, 1, 'L')
             pdf.ln(2)
+            
             pdf.set_font('DejaVu', size=11)
-            for _, row in df_section.iterrows():
-                # Layout de linha mais limpo, sem bordas
-                pdf.cell(20, 8, f"Dia {row['Dia']:02d}", 0, 0, 'R')
-                pdf.cell(5, 8, " - ", 0, 0, 'C')
-                pdf.multi_cell(0, 8, str(row['Nome Completo']), 0, 'L')
-            pdf.ln(5)
+            
+            # Define uma largura fixa para a coluna do dia
+            day_width = 20  # 20mm
 
+            for _, row in df_section.iterrows():
+                dia = str(row.get('Dia', ''))
+                nome_completo = str(row.get('Nome Completo', ''))
+                
+                # 1. Desenha a célula do dia com largura fixa e sem quebra de linha (ln=0)
+                pdf.cell(day_width, 8, f"Dia {dia}", 0, 0, 'L')
+                
+                # 2. Calcula o espaço restante na linha para o nome
+                # (Largura da página - margem direita - posição X atual)
+                remaining_width = pdf.w - pdf.r_margin - pdf.get_x()
+                
+                # 3. Desenha a célula do nome no espaço restante, com quebra de linha (ln=1)
+                # Usar 'cell' é mais seguro aqui do que 'multi_cell' para evitar o erro original.
+                pdf.cell(remaining_width, 8, f"- {nome_completo}", 0, 1, 'L')
+                
+            pdf.ln(8)  # Espaço extra entre as seções
+
+    # Chama a função de desenho para cada status
     draw_section("🟢 Aniversariantes Ativos", ativos_df)
     draw_section("🔴 Aniversariantes Inativos", inativos_df)
     draw_section("⚪ Aniversariantes com Status Não Definido", outros_df)
