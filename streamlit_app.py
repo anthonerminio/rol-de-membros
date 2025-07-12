@@ -1,4 +1,4 @@
-# Fichario de Membros PIB Gaibu - v7.2 (Otimizado e Estável)
+# Fichario de Membros PIB Gaibu - v7.3 (Otimizado com Correção de PDF)
 import streamlit as st
 import pandas as pd
 import gspread
@@ -13,7 +13,7 @@ from streamlit_oauth import OAuth2Component
 import jwt
 
 # --- 1) Configuração da página ---
-st.set_page_config(layout="wide", page_title="Fichário de Membros v7.2")
+st.set_page_config(layout="wide", page_title="Fichário de Membros v7.3")
 
 # --- A) Parâmetros de Login Google ---
 try:
@@ -33,7 +33,7 @@ except (KeyError, FileNotFoundError):
     st.stop()
 
 
-# --- Funções Auxiliares de Exportação (Lógica Estável da v7.2) ---
+# --- Funções Auxiliares de Exportação (Lógica Estável da v7.2 com correção de PDF) ---
 
 def criar_pdf_exportacao_busca(df):
     pdf = FPDF(orientation='P', unit='mm', format='A4')
@@ -50,14 +50,16 @@ def criar_pdf_exportacao_busca(df):
 
     for _, row in df.iterrows():
         pdf.set_font(FONT, size=12)
-        pdf.cell(0, 8, str(row["Nome"]).encode('latin-1', 'replace').decode('latin-1'), 0, 1, 'L')
+        # CORREÇÃO: Remover .encode/.decode para suportar Unicode
+        pdf.cell(0, 8, str(row["Nome"]), 0, 1, 'L')
 
         pdf.set_font(FONT, size=10)
-        pdf.cell(0, 6, f"  - Data de Nascimento: {row['Data de Nascimento']}".encode('latin-1', 'replace').decode('latin-1'), 0, 1, 'L')
-        pdf.cell(0, 6, f"  - Telefone: {row['Celular']}".encode('latin-1', 'replace').decode('latin-1'), 0, 1, 'L')
-        pdf.cell(0, 6, f"  - Forma de Admissão: {row['Forma de Admissao']}".encode('latin-1', 'replace').decode('latin-1'), 0, 1, 'L')
-        pdf.cell(0, 6, f"  - Data de Admissão: {row['Data de Admissao']}".encode('latin-1', 'replace').decode('latin-1'), 0, 1, 'L')
-        pdf.cell(0, 6, f"  - Data de Conversão: {row['Data de Conversao']}".encode('latin-1', 'replace').decode('latin-1'), 0, 1, 'L')
+        # CORREÇÃO: Remover .encode/.decode
+        pdf.cell(0, 6, f"  - Data de Nascimento: {row['Data de Nascimento']}", 0, 1, 'L')
+        pdf.cell(0, 6, f"  - Telefone: {row['Celular']}", 0, 1, 'L')
+        pdf.cell(0, 6, f"  - Forma de Admissão: {row['Forma de Admissao']}", 0, 1, 'L')
+        pdf.cell(0, 6, f"  - Data de Admissão: {row['Data de Admissao']}", 0, 1, 'L')
+        pdf.cell(0, 6, f"  - Data de Conversão: {row['Data de Conversao']}", 0, 1, 'L')
 
         pdf.ln(5)
         pdf.line(pdf.get_x(), pdf.get_y(), pdf.w - pdf.r_margin, pdf.get_y())
@@ -75,13 +77,15 @@ def criar_pdf_aniversariantes_com_status(ativos_df, inativos_df, outros_df, mes_
         FONT = "Arial"
 
     pdf.set_font(FONT, size=16)
-    pdf.cell(0, 10, f'Aniversariantes de {mes_nome}'.encode('latin-1', 'replace').decode('latin-1'), 0, 1, 'C')
+    # CORREÇÃO: Remover .encode/.decode
+    pdf.cell(0, 10, f'Aniversariantes de {mes_nome}', 0, 1, 'C')
     pdf.ln(10)
 
     def draw_section(title, df_section):
         if not df_section.empty:
             pdf.set_font(FONT, '', size=14)
-            pdf.cell(0, 10, title.encode('latin-1', 'replace').decode('latin-1'), 0, 1, 'L')
+            # CORREÇÃO: Remover .encode/.decode
+            pdf.cell(0, 10, title, 0, 1, 'L')
             pdf.ln(2)
 
             pdf.set_font(FONT, '', size=11)
@@ -89,7 +93,8 @@ def criar_pdf_aniversariantes_com_status(ativos_df, inativos_df, outros_df, mes_
                 nome_completo = str(row.get('Nome Completo', ''))
                 data_nasc = str(row.get('Data de Nascimento Completa', ''))
                 dia = data_nasc.split('/')[0] if '/' in data_nasc else data_nasc
-                pdf.cell(0, 8, f"Dia {dia}  -  {nome_completo}".encode('latin-1', 'replace').decode('latin-1'), 0, 1, 'L')
+                # CORREÇÃO: Remover .encode/.decode
+                pdf.cell(0, 8, f"Dia {dia}  -  {nome_completo}", 0, 1, 'L')
             pdf.ln(8)
 
     draw_section("🟢 Aniversariantes Ativos", ativos_df)
@@ -108,22 +113,27 @@ def criar_pdf_ficha(membro):
         FONT = "Arial"
 
     pdf.set_font(FONT, size=16)
-    pdf.cell(0, 10, 'Ficha Individual de Membro - PIB Gaibu'.encode('latin-1', 'replace').decode('latin-1'), 0, 1, 'C')
+    # CORREÇÃO: Remover .encode/.decode
+    pdf.cell(0, 10, 'Ficha Individual de Membro - PIB Gaibu', 0, 1, 'C')
     pdf.set_font(FONT, size=14)
-    pdf.cell(0, 10, membro.get("Nome", "").encode('latin-1', 'replace').decode('latin-1'), 0, 1, 'C')
+    # CORREÇÃO: Remover .encode/.decode
+    pdf.cell(0, 10, membro.get("Nome", ""), 0, 1, 'C')
     pdf.ln(5)
 
     def draw_field(label, value):
         if value and str(value).strip():
             pdf.set_font(FONT, '', size=10)
-            pdf.cell(50, 7, f"{label}:".encode('latin-1', 'replace').decode('latin-1'), 0, 0, 'L')
+            # CORREÇÃO: Remover .encode/.decode
+            pdf.cell(50, 7, f"{label}:", 0, 0, 'L')
             pdf.set_font(FONT, '', size=10)
-            pdf.multi_cell(0, 7, str(value).encode('latin-1', 'replace').decode('latin-1'), 0, 'L')
+            # CORREÇÃO: Remover .encode/.decode
+            pdf.multi_cell(0, 7, str(value), 0, 'L')
             pdf.ln(2)
 
     def draw_section_header(title):
         pdf.set_font(FONT, '', size=12)
-        pdf.cell(0, 10, title.encode('latin-1', 'replace').decode('latin-1'), 0, 1, 'L')
+        # CORREÇÃO: Remover .encode/.decode
+        pdf.cell(0, 10, title, 0, 1, 'L')
         pdf.line(10, pdf.get_y(), 200, pdf.get_y())
         pdf.ln(4)
 
