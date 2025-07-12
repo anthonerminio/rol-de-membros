@@ -688,7 +688,7 @@ else:
         if st.session_state.get("show_edit_modal", False):
             membro_para_editar = st.session_state.membros[st.session_state.editing_member_index]
             
-            with st.dialog("Editar Ficha do Membro", dismissed=False):
+            with st.dialog("Editar Ficha do Membro", dismissible=False):
                 with st.form("form_edicao_membro"):
                     st.subheader(f"Editando: {membro_para_editar.get('Nome')}")
                     
