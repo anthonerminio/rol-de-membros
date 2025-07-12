@@ -1,4 +1,4 @@
-# Fichario de Membros PIB Gaibu - v7.4 (Estável com Otimizações Seguras)
+# Fichario de Membros PIB Gaibu - v7.5 (Correção Final de Fonte)
 import streamlit as st
 import pandas as pd
 import gspread
@@ -13,7 +13,7 @@ from streamlit_oauth import OAuth2Component
 import jwt
 
 # --- 1) Configuração da página ---
-st.set_page_config(layout="wide", page_title="Fichário de Membros v7.4")
+st.set_page_config(layout="wide", page_title="Fichário de Membros v7.5")
 
 # --- A) Parâmetros de Login Google ---
 try:
@@ -33,7 +33,7 @@ except (KeyError, FileNotFoundError):
     st.stop()
 
 
-# --- Funções Auxiliares de Exportação (Lógica Estável da v7.2) ---
+# --- Funções Auxiliares de Exportação (Lógica de Fonte Corrigida) ---
 def criar_pdf_exportacao_busca(df):
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.add_page()
@@ -43,13 +43,16 @@ def criar_pdf_exportacao_busca(df):
     except RuntimeError:
         FONT = "Arial"
 
-    pdf.set_font(FONT, 'B', 16)
+    # CORREÇÃO: Aplica negrito ('B') apenas se a fonte for Arial
+    pdf.set_font(FONT, 'B' if FONT == 'Arial' else '', 16)
     pdf.cell(0, 10, "Relatório de Membros Selecionados", 0, 1, 'C')
     pdf.ln(10)
+
     for _, row in df.iterrows():
-        pdf.set_font(FONT, 'B', 12)
+        pdf.set_font(FONT, 'B' if FONT == 'Arial' else '', 12)
         pdf.cell(0, 8, str(row["Nome"]).encode('latin-1', 'replace').decode('latin-1'), 0, 1, 'L')
-        pdf.set_font(FONT, '', 10)
+        
+        pdf.set_font(FONT, '', 10) # Estilo regular '' sempre funciona
         def write_field(label, value):
             text = f"  - {label}: {str(value)}".encode('latin-1', 'replace').decode('latin-1')
             pdf.cell(0, 6, text, 0, 1, 'L')
@@ -65,14 +68,17 @@ def criar_pdf_aniversariantes_com_status(ativos_df, inativos_df, outros_df, mes_
         FONT = "DejaVu"
     except RuntimeError:
         FONT = "Arial"
-    pdf.set_font(FONT, 'B', 16)
+    
+    pdf.set_font(FONT, 'B' if FONT == 'Arial' else '', 16)
     pdf.cell(0, 10, f'Aniversariantes de {mes_nome}'.encode('latin-1', 'replace').decode('latin-1'), 0, 1, 'C')
     pdf.ln(10)
+
     def draw_section(title, df_section):
         if not df_section.empty:
-            pdf.set_font(FONT, 'B', 14)
+            pdf.set_font(FONT, 'B' if FONT == 'Arial' else '', 14)
             pdf.cell(0, 10, title.encode('latin-1', 'replace').decode('latin-1'), 0, 1, 'L')
             pdf.ln(2)
+            
             pdf.set_font(FONT, '', 11)
             for _, row in df_section.iterrows():
                 nome_completo = str(row.get('Nome Completo', '')); data_nasc = str(row.get('Data de Nascimento Completa', ''))
@@ -90,23 +96,28 @@ def criar_pdf_ficha(membro):
         FONT = "DejaVu"
     except RuntimeError:
         FONT = "Arial"
-    pdf.set_font(FONT, 'B', 16)
+    
+    pdf.set_font(FONT, 'B' if FONT == 'Arial' else '', 16)
     pdf.cell(0, 10, 'Ficha Individual de Membro - PIB Gaibu'.encode('latin-1', 'replace').decode('latin-1'), 0, 1, 'C')
-    pdf.set_font(FONT, 'B', 14)
+    
+    pdf.set_font(FONT, 'B' if FONT == 'Arial' else '', 14)
     pdf.cell(0, 10, membro.get("Nome", "").encode('latin-1', 'replace').decode('latin-1'), 0, 1, 'C')
     pdf.ln(5)
+
     def draw_field(label, value):
         if value and str(value).strip():
-            pdf.set_font(FONT, 'B', 10)
+            pdf.set_font(FONT, 'B' if FONT == 'Arial' else '', 10)
             pdf.cell(50, 7, f"{label}:".encode('latin-1', 'replace').decode('latin-1'), 0, 0, 'L')
             pdf.set_font(FONT, '', 10)
             pdf.multi_cell(0, 7, str(value).encode('latin-1', 'replace').decode('latin-1'), 0, 'L')
             pdf.ln(2)
+
     def draw_section_header(title):
-        pdf.set_font(FONT, 'B', 12)
+        pdf.set_font(FONT, 'B' if FONT == 'Arial' else '', 12)
         pdf.cell(0, 10, title.encode('latin-1', 'replace').decode('latin-1'), 0, 1, 'L')
         pdf.line(10, pdf.get_y(), 200, pdf.get_y())
         pdf.ln(4)
+        
     draw_section_header("👤 Dados Pessoais"); draw_field("CPF", membro.get("CPF")); draw_field("Data de Nascimento", membro.get("Data de Nascimento")); draw_field("Sexo", membro.get("Sexo")); draw_field("Estado Civil", membro.get("Estado Civil")); draw_field("Profissão", membro.get("Profissão")); draw_field("Celular", membro.get("Celular")); pdf.ln(5)
     draw_section_header("🏠 Endereço"); draw_field("CEP", membro.get("CEP")); draw_field("Endereço", membro.get("Endereco")); draw_field("Bairro", membro.get("Bairro")); draw_field("Cidade", membro.get("Cidade")); draw_field("UF", membro.get("UF (Endereco)")); pdf.ln(5)
     draw_section_header("👨‍👩‍👧 Filiação e Origem"); draw_field("Nome do Pai", membro.get("Nome do Pai")); draw_field("Nome da Mãe", membro.get("Nome da Mae")); draw_field("Cônjuge", membro.get("Nome do(a) Cônjuge")); draw_field("Nacionalidade", membro.get("Nacionalidade")); draw_field("Naturalidade", membro.get("Naturalidade")); pdf.ln(5)
@@ -117,6 +128,8 @@ def criar_pdf_ficha(membro):
 
 
 # --- Funções de Dados e Callbacks ---
+# (O restante do código permanece o mesmo da v7.4)
+
 NOME_PLANILHA = "Fichario_Membros_PIB_Gaibu"
 NOME_ABA = "Membros"
 try:
@@ -213,7 +226,6 @@ def confirmar_mudanca_status():
     salvar_membros(st.session_state.membros)
     st.toast(f"Status de {len(chaves_para_atualizar)} membro(s) alterado com sucesso!", icon="👍")
     st.session_state.confirmando_status, st.session_state.chaves_para_status, st.session_state.obs_status = False, set(), ""
-    # Limpa a seleção após a ação
     st.session_state.selecao_lista = set()
     for key in st.session_state.keys():
         if key.startswith("select_list_"):
@@ -296,18 +308,13 @@ else:
 
     with tab1:
         st.header("Cadastro de Novos Membros")
-        # REVERSÃO: Lógica do CEP volta para dentro do formulário, como na v7.2
         with st.form("form_membro"):
             st.subheader("Informações Pessoais"); c1, c2 = st.columns(2)
-            with c1:
-                st.text_input("Nome", key="nome"); st.text_input("CPF", key="cpf"); st.selectbox("Estado Civil", ["", "Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)"], key="estado_civil"); st.selectbox("Forma de Admissao", ["", "Batismo", "Transferência", "Aclamação"], key="forma_admissao")
-            with c2:
-                st.radio("Sexo", ["M", "F"], key="sexo", horizontal=True); st.date_input("Data de Nascimento", key="data_nasc", value=None, min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY"); st.text_input("Profissão", key="profissao"); st.text_input("Celular", key="celular")
+            with c1: st.text_input("Nome", key="nome"); st.text_input("CPF", key="cpf"); st.selectbox("Estado Civil", ["", "Solteiro(a)", "Casado(a)", "Divorciado(a)", "Viúvo(a)"], key="estado_civil"); st.selectbox("Forma de Admissao", ["", "Batismo", "Transferência", "Aclamação"], key="forma_admissao")
+            with c2: st.radio("Sexo", ["M", "F"], key="sexo", horizontal=True); st.date_input("Data de Nascimento", key="data_nasc", value=None, min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY"); st.text_input("Profissão", key="profissao"); st.text_input("Celular", key="celular")
             st.subheader("Filiação e Origem"); c3, c4 = st.columns(2)
-            with c3:
-                st.text_input("Nome do Pai", key="nome_pai"); st.text_input("Nome da Mãe", key="nome_mae"); st.text_input("Nome do(a) Cônjuge", key="conjuge")
-            with c4:
-                st.selectbox("Nacionalidade", ["", "Brasileiro(a)", "Estrangeiro(a)"], key="nacionalidade"); st.text_input("Naturalidade", key="naturalidade"); st.selectbox("UF (Naturalidade)", [""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"], key="uf_nat")
+            with c3: st.text_input("Nome do Pai", key="nome_pai"); st.text_input("Nome da Mãe", key="nome_mae"); st.text_input("Nome do(a) Cônjuge", key="conjuge")
+            with c4: st.selectbox("Nacionalidade", ["", "Brasileiro(a)", "Estrangeiro(a)"], key="nacionalidade"); st.text_input("Naturalidade", key="naturalidade"); st.selectbox("UF (Naturalidade)", [""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"], key="uf_nat")
             st.subheader("Endereço"); col_cep, col_btn_cep, col_spacer = st.columns([1,1,2])
             with col_cep: st.text_input("CEP", key="cep")
             with col_btn_cep:
@@ -323,10 +330,8 @@ else:
             with c9: st.text_input("Cidade", key="cidade")
             with c10: st.selectbox("UF (Endereco)", [""] + ["AC","AL","AP","AM","BA","CE","DF","ES","GO","MA","MT","MS","MG","PA","PB","PR","PE","PI","RJ","RN","RS","RO","RR","SC","SP","SE","TO"], key="uf_end")
             st.subheader("Informações Adicionais"); c11, c12, c13 = st.columns(3)
-            with c11:
-                st.selectbox("Grau de Instrução", ["", "Fundamental Incompleto", "Fundamental Completo", "Médio Incompleto", "Médio Completo", "Superior Incompleto", "Superior Completo", "Pós-graduação", "Mestrado", "Doutorado"], key="grau_ins"); st.selectbox("Status", ["Ativo", "Inativo"], key="status")
-            with c12:
-                st.date_input("Data de Conversao", key="data_conv", value=None, min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY"); st.date_input("Data de Admissao", key="data_adm", value=None, min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY")
+            with c11: st.selectbox("Grau de Instrução", ["", "Fundamental Incompleto", "Fundamental Completo", "Médio Incompleto", "Médio Completo", "Superior Incompleto", "Superior Completo", "Pós-graduação", "Mestrado", "Doutorado"], key="grau_ins"); st.selectbox("Status", ["Ativo", "Inativo"], key="status")
+            with c12: st.date_input("Data de Conversao", key="data_conv", value=None, min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY"); st.date_input("Data de Admissao", key="data_adm", value=None, min_value=date(1910, 1, 1), max_value=date(2030, 12, 31), format="DD/MM/YYYY")
             with c13: st.text_area("Observações", key="observacoes")
             st.markdown("---"); st.form_submit_button("💾 Salvar Membro", on_click=submeter_formulario)
 
@@ -338,16 +343,14 @@ else:
             col1_metric, col2_metric, col3_metric, col4_metric = st.columns(4)
             col1_metric.metric("Total de Membros", f"{total_membros} 👥"); col2_metric.metric("Membros Ativos", f"{ativos} 🟢"); col3_metric.metric("Membros Inativos", f"{inativos} 🔴"); col4_metric.metric("Status Não Definido", f"{sem_status} ⚪")
             st.divider()
-            # REVERSÃO: Lógica de seleção simples e estável
             selecao_atual = set()
             st.subheader("Ações para Itens Selecionados na Lista")
             col_ativo, col_inativo = st.columns(2)
-            with col_ativo:
-                if st.button("🟢 Marcar como Ativos", use_container_width=True, disabled=not st.session_state.selecao_lista, key="tab2_ativo"):
-                    st.session_state.chaves_para_status = st.session_state.selecao_lista.copy(); st.session_state.novo_status = "ATIVO"; st.session_state.confirmando_status = True
-            with col_inativo:
-                if st.button("🔴 Marcar como Inativos", use_container_width=True, disabled=not st.session_state.selecao_lista, key="tab2_inativo"):
-                    st.session_state.chaves_para_status = st.session_state.selecao_lista.copy(); st.session_state.novo_status = "INATIVO"; st.session_state.confirmando_status = True
+            # A checagem da seleção acontece depois do loop
+            if st.button("🟢 Marcar como Ativos", use_container_width=True, disabled=not st.session_state.selecao_lista, key="tab2_ativo"):
+                st.session_state.chaves_para_status = st.session_state.selecao_lista.copy(); st.session_state.novo_status = "ATIVO"; st.session_state.confirmando_status = True
+            if st.button("🔴 Marcar como Inativos", use_container_width=True, disabled=not st.session_state.selecao_lista, key="tab2_inativo"):
+                st.session_state.chaves_para_status = st.session_state.selecao_lista.copy(); st.session_state.novo_status = "INATIVO"; st.session_state.confirmando_status = True
             if st.session_state.get('confirmando_status', False):
                 novo_status = st.session_state.get('novo_status', 'DESCONHECIDO'); cor = "green" if novo_status == "ATIVO" else "red"
                 st.markdown(f"Você está prestes a alterar o status de **{len(st.session_state.chaves_para_status)}** membro(s) para <span style='color:{cor}; font-weight:bold;'>{novo_status}</span>.", unsafe_allow_html=True)
@@ -385,7 +388,6 @@ else:
             if data_filtro: df_filtrado = df_filtrado[df_filtrado['Data de Nascimento'] == data_filtro.strftime('%d/%m/%Y')]
             st.divider()
             st.subheader("Ações para Itens Selecionados")
-            # REVERSÃO: Lógica de seleção simples e estável
             selecao_busca_atual = set()
             for index, membro in df_filtrado.iterrows():
                 if st.session_state.get(f"select_search_{index}", False):
