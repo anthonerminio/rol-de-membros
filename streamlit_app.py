@@ -1,4 +1,4 @@
-# Versão Final e Corrigida - v5.5
+# Versão Final e Corrigida - v5.6
 import streamlit as st
 import pandas as pd
 import gspread
@@ -13,7 +13,7 @@ from streamlit_oauth import OAuth2Component
 import jwt
 
 # --- 1) Configuração da página ---
-st.set_page_config(layout="wide", page_title="Fichário de Membros v5.5")
+st.set_page_config(layout="wide", page_title="Fichário de Membros v5.6")
 
 # --- A) Parâmetros de Login Google ---
 try:
@@ -55,7 +55,7 @@ def criar_pdf_lista(df):
         pdf.ln(line_height)
     return bytes(pdf.output())
 
-# <-- ATUALIZAÇÃO: PDF de aniversariantes agora mostra apenas o dia (DD).
+# <-- ATUALIZAÇÃO: Layout do PDF de aniversariantes com o dia antes do nome.
 def criar_pdf_aniversariantes_com_status(ativos_df, inativos_df, outros_df, mes_nome):
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.add_page()
@@ -79,7 +79,7 @@ def criar_pdf_aniversariantes_com_status(ativos_df, inativos_df, outros_df, mes_
                 nome_completo = str(row.get('Nome Completo', ''))
                 data_nasc = str(row.get('Data de Nascimento Completa', ''))
                 dia = data_nasc.split('/')[0] if '/' in data_nasc else data_nasc
-                pdf.cell(0, 8, f"{nome_completo}  -  Dia {dia}", 0, 1, 'L')
+                pdf.cell(0, 8, f"Dia {dia}  -  {nome_completo}", 0, 1, 'L')
             pdf.ln(8)
 
     draw_section("🟢 Aniversariantes Ativos", ativos_df)
@@ -88,7 +88,6 @@ def criar_pdf_aniversariantes_com_status(ativos_df, inativos_df, outros_df, mes_
 
     return bytes(pdf.output())
 
-# <-- ATUALIZAÇÃO: Função da ficha individual mantida, já incluindo as observações no final.
 def criar_pdf_ficha(membro):
     pdf = FPDF(orientation='P', unit='mm', format='A4')
     pdf.add_page()
@@ -334,6 +333,7 @@ else:
 
     with tab1:
         st.header("Cadastro de Novos Membros")
+        # Sem alterações nesta aba
         with st.form("form_membro"):
             st.subheader("Informações Pessoais"); c1, c2 = st.columns(2)
             with c1:
@@ -369,6 +369,7 @@ else:
 
     with tab2:
         st.header("Visão Geral da Membresia")
+        # Sem alterações nesta aba
         if "membros" in st.session_state and st.session_state.membros:
             df_membros_tab2 = pd.DataFrame(st.session_state.membros)
             total_membros = len(df_membros_tab2); ativos = len(df_membros_tab2[df_membros_tab2['Status'].str.upper() == 'ATIVO']); inativos = len(df_membros_tab2[df_membros_tab2['Status'].str.upper() == 'INATIVO']); sem_status = total_membros - ativos - inativos
@@ -389,7 +390,6 @@ else:
                     st.session_state.chaves_para_status = st.session_state.selecao_lista
                     st.session_state.novo_status = "INATIVO"; st.session_state.confirmando_status = True
 
-            # <-- ATUALIZAÇÃO: Diálogo de confirmação posicionado logo abaixo dos botões de ação.
             if st.session_state.get('confirmando_status', False):
                 novo_status = st.session_state.get('novo_status', 'DESCONHECIDO'); cor = "green" if novo_status == "ATIVO" else "red"
                 st.markdown(f"Você está prestes a alterar o status de **{len(st.session_state.chaves_para_status)}** membro(s) para <span style='color:{cor}; font-weight:bold;'>{novo_status}</span>.", unsafe_allow_html=True)
@@ -438,34 +438,17 @@ else:
 
             st.divider()
             
-            st.subheader("Ações para Itens Selecionados na Busca")
+            st.subheader("Ações para Itens Selecionados")
             sem_selecao_busca = not st.session_state.get("selecao_busca", set())
             
-            col_excluir, col_excel, col_pdf = st.columns(3)
-            with col_excluir:
-                if st.button("🗑️ Excluir Selecionados", use_container_width=True, disabled=sem_selecao_busca, key="tab3_excluir"):
-                    st.session_state.chaves_para_excluir = st.session_state.selecao_busca
-                    st.session_state.confirmando_exclusao = True
-            
-            if not df_original.empty and st.session_state.get("selecao_busca"):
-                df_para_exportar = df_original[df_original.apply(lambda row: (row['Nome'], row['Data de Nascimento']) in st.session_state.selecao_busca, axis=1)].reindex(columns=HEADERS)
-                output_excel = BytesIO();
-                with pd.ExcelWriter(output_excel, engine='openpyxl') as writer: df_para_exportar.to_excel(writer, index=False, sheet_name='Membros')
-                excel_data = output_excel.getvalue()
-                pdf_data = criar_pdf_lista(df_para_exportar)
-            else:
-                excel_data, pdf_data = b"", b""
-            
-            with col_excel:
-                st.download_button("📄 Exportar Excel", excel_data, "membros_selecionados.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True, disabled=sem_selecao_busca)
-            with col_pdf:
-                st.download_button("📕 Exportar PDF", pdf_data, "membros_selecionados.pdf", "application/pdf", use_container_width=True, disabled=sem_selecao_busca)
+            if st.button("🗑️ Excluir Selecionados", use_container_width=True, disabled=sem_selecao_busca, key="tab3_excluir", type="primary"):
+                st.session_state.chaves_para_excluir = st.session_state.selecao_busca
+                st.session_state.confirmando_exclusao = True
 
-            # <-- ATUALIZAÇÃO: Diálogo de confirmação de exclusão posicionado logo abaixo dos botões de ação.
             if st.session_state.get('confirmando_exclusao', False):
                 st.warning(f"Deseja realmente deletar os {len(st.session_state.chaves_para_excluir)} itens selecionados?")
                 c1, c2 = st.columns(2)
-                if c1.button("Sim, excluir definitivamente", use_container_width=True, type="primary"):
+                if c1.button("Sim, excluir definitivamente", use_container_width=True):
                     membros_atualizados = [m for m in st.session_state.membros if (m.get('Nome'), m.get('Data de Nascimento')) not in st.session_state.chaves_para_excluir]
                     st.session_state.membros = membros_atualizados
                     salvar_membros(membros_atualizados)
@@ -476,6 +459,25 @@ else:
                     st.success("Registros excluídos!"); st.rerun()
                 if c2.button("Não, voltar", use_container_width=True):
                     st.session_state.confirmando_exclusao, st.session_state.chaves_para_excluir = False, set(); st.rerun()
+
+            # <-- ATUALIZAÇÃO: Layout da seção de exportação corrigido e separado da exclusão.
+            st.markdown("---")
+            st.subheader("Exportar Seleção")
+
+            if not df_original.empty and st.session_state.get("selecao_busca"):
+                df_para_exportar = df_original[df_original.apply(lambda row: (row['Nome'], row['Data de Nascimento']) in st.session_state.selecao_busca, axis=1)].reindex(columns=HEADERS)
+                output_excel = BytesIO();
+                with pd.ExcelWriter(output_excel, engine='openpyxl') as writer: df_para_exportar.to_excel(writer, index=False, sheet_name='Membros')
+                excel_data = output_excel.getvalue()
+                pdf_data = criar_pdf_lista(df_para_exportar)
+            else:
+                excel_data, pdf_data = b"", b""
+            
+            col_excel, col_pdf = st.columns(2)
+            with col_excel:
+                st.download_button("📄 Exportar Excel", excel_data, "membros_selecionados.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", use_container_width=True, disabled=sem_selecao_busca)
+            with col_pdf:
+                st.download_button("📕 Exportar PDF", pdf_data, "membros_selecionados.pdf", "application/pdf", use_container_width=True, disabled=sem_selecao_busca)
 
             st.markdown("---")
             
@@ -524,13 +526,13 @@ else:
                     
                     df_display_cols = {'Nome': 'Nome Completo', 'Data de Nascimento': 'Data de Nascimento Completa'}
 
-                    # <-- ATUALIZAÇÃO: Layout para mostrar apenas o DIA (DD) do aniversário.
+                    # <-- ATUALIZAÇÃO: Layout para mostrar o dia ANTES do nome.
                     def display_birthday_section(title, df_section, icon):
                         if not df_section.empty:
                             st.markdown(f"#### {icon} {title}")
                             for _, row in df_section.iterrows():
                                 with st.container(border=True):
-                                    st.markdown(f"**{row['Nome']}** - Dia {row['Dia']}")
+                                    st.markdown(f"**Dia {row['Dia']}** - {row['Nome']}")
                             st.markdown("<br>", unsafe_allow_html=True)
 
                     display_birthday_section("Aniversariantes Ativos", ativos_df, "🟢")
@@ -550,6 +552,7 @@ else:
 
     with tab5:
         st.header("Gerar Ficha Individual de Membro")
+        # Sem alterações nesta aba
         if "membros" in st.session_state and st.session_state.membros:
             lista_nomes = [""] + sorted([m.get("Nome", "") for m in st.session_state.membros if m.get("Nome")])
             membro_selecionado_nome = st.selectbox("Selecione ou digite o nome do membro para gerar a ficha:", options=lista_nomes, placeholder="Selecione um membro...", index=0)
