@@ -20,7 +20,7 @@ try:
     GOOGLE_CLIENT_ID = st.secrets["google_oauth"]["client_id"]
     GOOGLE_CLIENT_SECRET = st.secrets["google_oauth"]["client_secret"]
     GOOGLE_REDIRECT_URI = "https://pibgaibu.streamlit.app"
-    EMAILS_PERMITIDOS = {"antonio.esn01@gmail.com", "neto1999.legal@gmail.com", "adrielsoliveira1907@gmail.com"}
+    EMAILS_PERMITIDOS = {"antonio.esn01@gmail.com", "neto1999.legal@gmail.com", "lilianemoraissilvasantos@gmail.com", "adrielsoliveira1907@gmail.com"}
 
     oauth2 = OAuth2Component(
         client_id=GOOGLE_CLIENT_ID,
