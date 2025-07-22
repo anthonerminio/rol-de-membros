@@ -155,6 +155,35 @@ def criar_pdf_ficha(membro):
 
     return bytes(pdf.output())
 
+def criar_pdf_impressao_massa(df):
+    pdf = FPDF(orientation='P', unit='mm', format='A4')
+    pdf.add_page()
+    try:
+        pdf.add_font("DejaVu", "", "fonts/DejaVuSans.ttf", uni=True)
+        FONT = "DejaVu"
+    except RuntimeError:
+        FONT = "Arial"
+
+    pdf.set_font(FONT, 'B', size=16)
+    pdf.cell(0, 10, "📄 Fichas de Membros Selecionados", 0, 1, 'C')
+    pdf.ln(10)
+
+    for _, row in df.iterrows():
+        pdf.set_font(FONT, 'B', size=12)
+        pdf.cell(0, 8, str(row.get("Nome", "")), 0, 1, 'L')
+
+        pdf.set_font(FONT, '', size=10)
+        pdf.cell(0, 6, f"   - CPF: {row.get('CPF', 'N/A')}", 0, 1, 'L')
+        pdf.cell(0, 6, f"   - Data de Conversão: {row.get('Data de Conversao', 'N/A')}", 0, 1, 'L')
+        pdf.cell(0, 6, f"   - Tipo de Admissão: {row.get('Forma de Admissao', 'N/A')}", 0, 1, 'L')
+        pdf.cell(0, 6, f"   - Data de Admissão: {row.get('Data de Admissao', 'N/A')}", 0, 1, 'L')
+        
+        pdf.ln(5)
+        pdf.line(pdf.get_x(), pdf.get_y(), pdf.w - pdf.r_margin, pdf.get_y())
+        pdf.ln(5)
+
+    return bytes(pdf.output())
+
 
 # --- Funções de Dados (Google Sheets) ---
 NOME_PLANILHA = "Fichario_Membros_PIB_Gaibu"
@@ -312,6 +341,8 @@ def init_state():
             st.session_state.selecao_lista = set()
         if "selecao_busca" not in st.session_state:
             st.session_state.selecao_busca = set()
+        if "selecao_impressao" not in st.session_state:
+            st.session_state.selecao_impressao = set()
 
         if "editing_member_key" not in st.session_state:
             st.session_state.editing_member_key = None
@@ -395,7 +426,7 @@ else:
             st.rerun()
     st.divider()
 
-    tab1, tab2, tab3, tab4, tab5 = st.tabs(["Cadastro", "Lista de Membros", "Busca e Ações", "Aniversariantes", "✏️ Fichas de Membros"])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Cadastro", "Lista de Membros", "Busca e Ações", "Aniversariantes", "✏️ Fichas de Membros", "🖨️ Impressão em Massa"])
 
     with tab1:
         st.header("Cadastro de Novos Membros")
@@ -721,3 +752,42 @@ else:
                                     st.session_state.editing_member_key = None
         else:
             st.info("Nenhum membro encontrado com os filtros aplicados.")
+            
+    with tab6:
+        st.header("Impressão em Massa de Fichas")
+        if "membros" in st.session_state and st.session_state.membros:
+            df_membros_impressao = pd.DataFrame(st.session_state.membros)
+            
+            st.subheader("Selecione os membros para gerar o PDF")
+            
+            selecao_atual = set()
+            for index, membro in df_membros_impressao.iterrows():
+                chave_membro = (membro.get('Nome'), membro.get('Data de Nascimento'))
+                if st.checkbox(f"{membro.get('Nome')} ({membro.get('CPF', 'N/A')})", key=f"print_select_{index}"):
+                    selecao_atual.add(chave_membro)
+            
+            st.session_state.selecao_impressao = selecao_atual
+            
+            st.divider()
+            
+            if st.session_state.selecao_impressao:
+                df_para_imprimir = df_membros_impressao[df_membros_impressao.apply(lambda row: (row['Nome'], row['Data de Nascimento']) in st.session_state.selecao_impressao, axis=1)]
+                
+                colunas_desejadas = ["Nome", "CPF", "Data de Conversao", "Forma de Admissao", "Data de Admissao"]
+                df_final = df_para_imprimir[colunas_desejadas]
+                
+                pdf_bytes = criar_pdf_impressao_massa(df_final)
+                
+                st.download_button(
+                    label="🖨️ Gerar PDF com Selecionados",
+                    data=pdf_bytes,
+                    file_name="impressao_massa_membros.pdf",
+                    mime="application/pdf",
+                    use_container_width=True,
+                    type="primary"
+                )
+            else:
+                st.info("Selecione pelo menos um membro para gerar o arquivo PDF.")
+
+        else:
+            st.warning("Não há membros cadastrados para exibir.")
