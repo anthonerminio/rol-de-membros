@@ -325,6 +325,12 @@ def toggle_member_selection(member_key, checkbox_key):
     else:
         st.session_state.selecao_lista.discard(member_key)
 
+def toggle_mass_print_selection(member_key, checkbox_key):
+    if st.session_state.get(checkbox_key, False):
+        st.session_state.selecao_impressao.add(member_key)
+    else:
+        st.session_state.selecao_impressao.discard(member_key)
+
 def init_state():
     if "authenticated" not in st.session_state:
         st.session_state.authenticated = False
@@ -757,29 +763,64 @@ else:
         st.header("Impressão em Massa de Fichas")
         if "membros" in st.session_state and st.session_state.membros:
             df_membros_impressao = pd.DataFrame(st.session_state.membros)
+
+            # Garante que a coluna status não tenha valores nulos para a comparação
+            df_membros_impressao['Status'] = df_membros_impressao['Status'].fillna('').str.upper()
+
+            ativos_df = df_membros_impressao[df_membros_impressao['Status'] == 'ATIVO']
+            inativos_df = df_membros_impressao[df_membros_impressao['Status'] == 'INATIVO']
+            outros_df = df_membros_impressao[~df_membros_impressao['Status'].isin(['ATIVO', 'INATIVO'])]
             
             st.subheader("Selecione os membros para gerar o PDF")
             
-            selecao_atual = set()
-            for index, membro in df_membros_impressao.iterrows():
-                chave_membro = (membro.get('Nome'), membro.get('Data de Nascimento'))
-                if st.checkbox(f"{membro.get('Nome')} ({membro.get('CPF', 'N/A')})", key=f"print_select_{index}"):
-                    selecao_atual.add(chave_membro)
-            
-            st.session_state.selecao_impressao = selecao_atual
+            st.markdown("#### 🟢 Membros Ativos")
+            if not ativos_df.empty:
+                for index, membro in ativos_df.iterrows():
+                    chave_membro = (membro.get('Nome'), membro.get('Data de Nascimento'))
+                    checkbox_key = f"print_select_{index}"
+                    label = f"{membro.get('Nome')} - Nasc: {membro.get('Data de Nascimento', 'N/A')}"
+                    st.checkbox(label, key=checkbox_key, on_change=toggle_mass_print_selection, args=(chave_membro, checkbox_key))
+            else:
+                st.write("Nenhum membro ativo para exibir.")
             
             st.divider()
-            
+
+            st.markdown("#### 🔴 Membros Inativos")
+            if not inativos_df.empty:
+                for index, membro in inativos_df.iterrows():
+                    chave_membro = (membro.get('Nome'), membro.get('Data de Nascimento'))
+                    checkbox_key = f"print_select_{index}"
+                    label = f"{membro.get('Nome')} - Nasc: {membro.get('Data de Nascimento', 'N/A')}"
+                    st.checkbox(label, key=checkbox_key, on_change=toggle_mass_print_selection, args=(chave_membro, checkbox_key))
+            else:
+                st.write("Nenhum membro inativo para exibir.")
+
+            st.divider()
+
+            st.markdown("#### ⚪ Status Não Definido")
+            if not outros_df.empty:
+                for index, membro in outros_df.iterrows():
+                    chave_membro = (membro.get('Nome'), membro.get('Data de Nascimento'))
+                    checkbox_key = f"print_select_{index}"
+                    label = f"{membro.get('Nome')} - Nasc: {membro.get('Data de Nascimento', 'N/A')}"
+                    st.checkbox(label, key=checkbox_key, on_change=toggle_mass_print_selection, args=(chave_membro, checkbox_key))
+            else:
+                st.write("Nenhum membro com status não definido para exibir.")
+
+            st.divider()
+
             if st.session_state.selecao_impressao:
                 df_para_imprimir = df_membros_impressao[df_membros_impressao.apply(lambda row: (row['Nome'], row['Data de Nascimento']) in st.session_state.selecao_impressao, axis=1)]
                 
                 colunas_desejadas = ["Nome", "CPF", "Data de Conversao", "Forma de Admissao", "Data de Admissao"]
-                df_final = df_para_imprimir[colunas_desejadas]
+                # Assegura que todas as colunas existem antes de selecionar
+                colunas_existentes = [col for col in colunas_desejadas if col in df_para_imprimir.columns]
+                df_final = df_para_imprimir[colunas_existentes]
                 
                 pdf_bytes = criar_pdf_impressao_massa(df_final)
                 
                 st.download_button(
-                    label="🖨️ Gerar PDF com Selecionados",
+                    label=f"🖨️ Gerar PDF com {len(st.session_state.selecao_impressao)} Membro(s) Selecionado(s)",
                     data=pdf_bytes,
                     file_name="impressao_massa_membros.pdf",
                     mime="application/pdf",
